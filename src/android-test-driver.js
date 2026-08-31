@@ -1,9 +1,10 @@
-import { execFile } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 
 function trimOutput(value, maxCharacters = 3000) {
   const text = String(value ?? "").trim();
@@ -18,6 +19,17 @@ function decodeXml(value) {
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")
     .replaceAll("&amp;", "&");
+}
+
+const LOADING_PATTERN =
+  /downloading|bundling|loading from metro|building javascript|please wait/i;
+
+export function looksLoading(nodes, minimumNodes = 4) {
+  if (!Array.isArray(nodes) || nodes.length < minimumNodes) return true;
+  const text = nodes
+    .map((node) => `${node.text ?? ""} ${node["content-desc"] ?? ""}`)
+    .join(" ");
+  return LOADING_PATTERN.test(text);
 }
 
 export function compactUiHierarchy(xml, maxNodes = 100) {
@@ -45,6 +57,24 @@ export function compactUiHierarchy(xml, maxNodes = 100) {
   return nodes;
 }
 
+export function centerOfBounds(bounds) {
+  const match = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(String(bounds ?? ""));
+  if (!match) return null;
+  const [, left, top, right, bottom] = match.map(Number);
+  return [Math.round((left + right) / 2), Math.round((top + bottom) / 2)];
+}
+
+export function findNodeByText(nodes, target) {
+  const needle = String(target).toLowerCase();
+  return (
+    (nodes ?? []).find((node) =>
+      [node.text, node["content-desc"]]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    ) ?? null
+  );
+}
+
 function validateInteger(value, label) {
   if (!Number.isInteger(value)) throw new Error(`${label} deve ser inteiro.`);
   return String(value);
@@ -60,7 +90,18 @@ export function validateAdbSteps(steps) {
     }
 
     const action = step.action;
-    if (!["tap", "text", "keyevent", "swipe", "wait", "checkpoint"].includes(action)) {
+    if (
+      ![
+        "tap",
+        "tapText",
+        "scrollToEnd",
+        "text",
+        "keyevent",
+        "swipe",
+        "wait",
+        "checkpoint",
+      ].includes(action)
+    ) {
       throw new Error(`Ação ADB não permitida: ${action}.`);
     }
     return { ...step };
@@ -74,12 +115,45 @@ export class AndroidTestDriver {
     deviceId,
     steps = [],
     artifactsDirectory,
+    projectPath,
+    buildCommand,
+    buildTimeoutMs = 20 * 60_000,
+    readyTimeoutMs = 120_000,
+    readyPollMs = 3_000,
+    lock = (operation) => operation(),
   }) {
     this.packageName = packageName;
     this.activity = activity;
     this.deviceId = deviceId;
     this.steps = validateAdbSteps(steps);
     this.artifactsDirectory = artifactsDirectory;
+    this.projectPath = projectPath;
+    this.buildCommand = buildCommand;
+    this.buildTimeoutMs = buildTimeoutMs;
+    this.readyTimeoutMs = readyTimeoutMs;
+    this.readyPollMs = readyPollMs;
+    this.lock = lock;
+  }
+
+  async buildAndInstall() {
+    if (!this.buildCommand) return null;
+    try {
+      const { stdout, stderr } = await execAsync(this.buildCommand, {
+        cwd: this.projectPath,
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+        timeout: this.buildTimeoutMs,
+      });
+      return { status: "OK", output: trimOutput(`${stdout}\n${stderr}`, 1200) };
+    } catch (error) {
+      const output = trimOutput(
+        `${error.stdout ?? ""}\n${error.stderr ?? error.message}`,
+        2000,
+      );
+      const failure = new Error(`Build falhou antes do teste de tela.\n${output}`);
+      failure.code = "BUILD_FAILED";
+      throw failure;
+    }
   }
 
   adbPrefix() {
@@ -134,6 +208,45 @@ export class AndroidTestDriver {
           validateInteger(step.y, "y"),
         ]);
         break;
+      case "tapText": {
+        if (typeof step.value !== "string") {
+          throw new Error("tapText.value deve ser string.");
+        }
+        const nodes = await this.captureUiHierarchy();
+        const node = findNodeByText(nodes, step.value);
+        const center = node ? centerOfBounds(node.bounds) : null;
+        if (!center) {
+          if (step.optional) break;
+          throw new Error(
+            `tapText: "${step.value}" não encontrado na tela atual.`,
+          );
+        }
+        await this.runTextAdb([
+          "shell",
+          "input",
+          "tap",
+          String(center[0]),
+          String(center[1]),
+        ]);
+        break;
+      }
+      case "scrollToEnd": {
+        const times = Math.min(Number(step.times ?? 4), 12);
+        for (let index = 0; index < times; index += 1) {
+          await this.runTextAdb([
+            "shell",
+            "input",
+            "swipe",
+            "540",
+            "1700",
+            "540",
+            "500",
+            "300",
+          ]);
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+        break;
+      }
       case "text":
         if (typeof step.value !== "string") throw new Error("text.value deve ser string.");
         await this.runTextAdb([
@@ -195,10 +308,34 @@ export class AndroidTestDriver {
     return compactUiHierarchy(xml.toString("utf8"));
   }
 
-  async collectEvidence({ cycle }) {
+  collectEvidence({ cycle }) {
+    return this.lock(() => this.collectEvidenceExclusive({ cycle }));
+  }
+
+  async waitUntilRendered() {
+    const deadline = Date.now() + this.readyTimeoutMs;
+    let nodes = [];
+
+    while (Date.now() < deadline) {
+      try {
+        nodes = await this.captureUiHierarchy();
+      } catch {
+        nodes = [];
+      }
+      if (!looksLoading(nodes)) {
+        return { ready: true, nodes };
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.readyPollMs));
+    }
+
+    return { ready: false, nodes };
+  }
+
+  async collectEvidenceExclusive({ cycle }) {
     const cycleDirectory = path.join(this.artifactsDirectory, `cycle-${cycle}`);
     await mkdir(cycleDirectory, { recursive: true });
 
+    const build = await this.buildAndInstall();
     const device = await this.ensureDevice();
     await this.runTextAdb(["logcat", "-c"]);
     await this.runTextAdb(["shell", "am", "force-stop", this.packageName]);
@@ -211,6 +348,20 @@ export class AndroidTestDriver {
       `${this.packageName}/${this.activity}`,
     ]);
 
+    let rendered = await this.waitUntilRendered();
+    if (!rendered.ready) {
+      await this.runTextAdb(["shell", "am", "force-stop", this.packageName]);
+      await this.runTextAdb([
+        "shell",
+        "am",
+        "start",
+        "-W",
+        "-n",
+        `${this.packageName}/${this.activity}`,
+      ]);
+      rendered = await this.waitUntilRendered();
+    }
+
     const screenshots = [];
     for (const step of this.steps) {
       await this.runStep(step, cycleDirectory, screenshots);
@@ -218,7 +369,7 @@ export class AndroidTestDriver {
     screenshots.push(await this.captureScreenshot(cycleDirectory));
 
     const [uiNodes, errors] = await Promise.all([
-      this.captureUiHierarchy(),
+      rendered.ready ? Promise.resolve(rendered.nodes) : this.captureUiHierarchy(),
       this.runTextAdb(
         ["logcat", "-d", "-t", "250", "AndroidRuntime:E", "ReactNativeJS:W", "*:S"],
         4000,
@@ -229,7 +380,9 @@ export class AndroidTestDriver {
       device,
       packageName: this.packageName,
       activity: this.activity,
+      build,
       launch,
+      rendered: rendered.ready,
       screenshots,
       uiNodes,
       errors,
