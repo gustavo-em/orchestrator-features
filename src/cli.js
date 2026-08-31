@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,7 @@ import {
   loadProjectConfig,
   resolveTaskFile,
 } from "./app-config.js";
-import { assertNotOrchestrator } from "./paths.js";
+import { assertNotOrchestrator, orchestratorRoot } from "./paths.js";
 import { profileNames, resolveProfile } from "./profiles.js";
 import { readMarketCache, writeMarketCache } from "./market-cache.js";
 import { buildBatchReport, writeBatchReport } from "./report.js";
@@ -310,8 +310,19 @@ async function readTextArgument(args, directKey, fileKey) {
   return args[directKey]?.trim() ?? "";
 }
 
+/** Caminhos podem ser digitados de qualquer pasta: tenta a partir do diretório
+ *  atual e, se não existir, a partir da raiz do orquestrador — é lá que ficam
+ *  runs/, apps/ e examples/. */
+function resolveInputPath(value) {
+  if (!value) return value;
+  const fromCwd = path.resolve(value);
+  if (existsSync(fromCwd) || path.isAbsolute(value)) return fromCwd;
+  const fromRoot = path.resolve(orchestratorRoot, value);
+  return existsSync(fromRoot) ? fromRoot : fromCwd;
+}
+
 async function loadResumeState(file) {
-  const state = JSON.parse(await readFile(path.resolve(file), "utf8"));
+  const state = JSON.parse(await readFile(resolveInputPath(file), "utf8"));
   if (!state.projectPath || !state.task) {
     throw new Error(`${file} não parece um estado de execução do orquestrador.`);
   }
@@ -389,7 +400,7 @@ async function configFromArguments(args) {
 
   return {
     dryRun: Boolean(args["dry-run"]),
-    resumeFile: args.resume ? path.resolve(args.resume) : "",
+    resumeFile: args.resume ? resolveInputPath(args.resume) : "",
     retries: parseRetries(args.retries),
     waitMs: parseWaitMinutes(args.wait),
     metroPort: Number.parseInt(args["metro-port"] ?? "8081", 10),
@@ -406,7 +417,7 @@ async function configFromArguments(args) {
     appName: app?.exists ? app.name : null,
     taskFile: args["task-file"] ?? "",
     gateOverrides: profile?.gateOverrides ?? {},
-    tasksFile: tasksFile ? path.resolve(tasksFile) : "",
+    tasksFile: tasksFile ? resolveInputPath(tasksFile) : "",
     concurrency: parseConcurrency(args.concurrency),
     baseRef: args["base-ref"] ?? "",
     buildCommand: args["build-command"] ?? app?.buildCommand ?? "",
@@ -429,7 +440,9 @@ async function configFromArguments(args) {
           activity:
             args["android-activity"] ?? app?.androidActivity ?? detected.activity,
           deviceId: args["adb-device"] ?? app?.adbDevice ?? "",
-          stepsFile: args["adb-steps"] ?? app?.adbSteps ?? "",
+          stepsFile: args["adb-steps"]
+            ? resolveInputPath(args["adb-steps"])
+            : (app?.adbSteps ?? ""),
         }
       : null,
     marketing: {

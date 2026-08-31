@@ -72,6 +72,10 @@ export function resolveTaskFile(value, app) {
   if (existsSync(value)) {
     return { taskFile: value, acceptanceFile: pairedAcceptance(value) };
   }
+  const fromRoot = path.resolve(orchestratorRoot, value);
+  if (existsSync(fromRoot)) {
+    return { taskFile: fromRoot, acceptanceFile: pairedAcceptance(fromRoot) };
+  }
   if (app?.tasksDirectory) {
     const named = path.join(app.tasksDirectory, `${value}.md`);
     if (existsSync(named)) {
