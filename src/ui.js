@@ -158,6 +158,15 @@ export function createPrinter({
       case "baseline.failed":
         write(slug, "tester", style.yellow(`captura falhou: ${event.message}`));
         return;
+      case "redesign.escalated":
+        write(
+          slug,
+          "feature_lead",
+          style.yellow(
+            "achados exigem mudar a direção; revisando o brief em vez de parar",
+          ),
+        );
+        return;
       case "plan.only":
         write(
           slug,

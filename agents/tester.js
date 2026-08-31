@@ -43,6 +43,12 @@ Regras:
 - Não execute npm, Metro ou ADB: evidência já foi coletada fora do contexto do modelo.
 - Não inicie agentes.
 - Máximo de 5 achados, somente problemas reproduzíveis e relevantes aos critérios.
+- Achado é defeito observável na evidência: elemento cortado, texto ilegível, estado ausente,
+  contraste insuficiente, alvo pequeno demais, fluxo que não chega onde deveria.
+- Não peça exploração de alternativas, mockups, variações nem nova direção visual. Isso pertence
+  ao brief e já foi decidido antes desta etapa; pedir aqui trava a implementação.
+- Não reabra decisão de design que a tela cumpre. "Poderia ser melhor" não é FAIL; "está quebrado
+  ou não atende ao critério" é.
 - Respostas curtas. Sem narrativa, elogio, tutorial ou repetição da tarefa.
 - PASS: evidência cobre critérios visuais verificáveis e não mostra falha.
 - FAIL: problema corrigível no projeto.

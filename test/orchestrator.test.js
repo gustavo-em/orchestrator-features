@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildImplementationContract } from "../agents/feature-lead.js";
-import { runFeatureLoop } from "../src/orchestrator.js";
+import { needsBriefRevision, runFeatureLoop } from "../src/orchestrator.js";
 
 class MemoryStore {
   constructor() {
@@ -642,4 +642,73 @@ test("sem gate visual o loop não gasta captura antes do planejamento", async ()
 
   assert.equal(calls, 0);
   assert.equal(runtime.planningContexts[0].baselineEvidence, null);
+});
+
+test("recusa por exigir redesenho revisa o brief em vez de encerrar", async () => {
+  const runtime = fakeRuntime({
+    designs: [brief(), brief({ summary: "Brief revisado" })],
+    executors: [
+      {
+        status: "BLOCKED",
+        summary:
+          "Achados pedem redesenho e exploração de alternativas, proibidos nesta fase.",
+        changes: [],
+        tests: [],
+        blockers: ["redesenho fora do contrato"],
+      },
+      executorResult("Implementado com o brief novo"),
+    ],
+    audits: [review("PASS")],
+  });
+  const eventos = [];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    onEvent: (event) => eventos.push(event.type),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(runtime.designerIndex, 2);
+  assert.ok(eventos.includes("redesign.escalated"));
+  assert.equal(runtime.executorContexts[1].contractDelivered, false);
+});
+
+test("recusa por outro motivo continua encerrando o loop", async () => {
+  const runtime = fakeRuntime({
+    executors: [
+      {
+        status: "BLOCKED",
+        summary: "Falta a credencial do serviço de mapas.",
+        changes: [],
+        tests: [],
+        blockers: ["credencial ausente"],
+      },
+    ],
+  });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+  });
+
+  assert.equal(result.finalStatus, "BLOCKED");
+  assert.equal(result.stopReason, "feature_lead_implementation_blocked");
+  assert.equal(runtime.designerIndex, 1);
+});
+
+test("escalada acontece uma vez só, sem virar laço", () => {
+  assert.equal(
+    needsBriefRevision({ summary: "pedem redesenho, proibidos nesta fase" }),
+    true,
+  );
+  assert.equal(
+    needsBriefRevision({ summary: "ok", blockers: ["contradiz o contrato"] }),
+    true,
+  );
+  assert.equal(needsBriefRevision({ summary: "faltou credencial" }), false);
 });

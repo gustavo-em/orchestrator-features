@@ -1,5 +1,20 @@
 import { workspaceDiff, workspaceFingerprint } from "./workspace.js";
 
+const NEEDS_REDESIGN_PATTERN =
+  /redesenh|reabrir decis|reabre decis|explora[çc][ãa]o de alternativas|proibid[oa]s? nesta fase|fora do contrato|contradiz o contrato/i;
+
+/** Quando o feedback exige mudar a direção, a implementação recusa por regra —
+ *  e com razão. O caminho não é insistir, é revisar o brief. */
+export function needsBriefRevision(implementationResult) {
+  const text = [
+    implementationResult?.summary,
+    ...(implementationResult?.blockers ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return NEEDS_REDESIGN_PATTERN.test(text);
+}
+
 export function resolveGates(designBrief, overrides = {}) {
   const pick = (override, briefValue) =>
     typeof override === "boolean" ? override : Boolean(briefValue);
@@ -136,6 +151,7 @@ export async function runFeatureLoop({
   let marketAnalysis = null;
   let designBrief = null;
   let contractDelivered = false;
+  let briefRevisedForBlock = false;
   const primedSpecialists = {
     code_reviewer: false,
     tester: false,
@@ -411,8 +427,38 @@ export async function runFeatureLoop({
     };
 
     if (implementationResult.status === "BLOCKED") {
+      const escalate =
+        needsBriefRevision(implementationResult) &&
+        !briefRevisedForBlock &&
+        cycle < maxCycles;
+
+      if (!escalate) {
+        state.cycles.push(cycleState);
+        return finish("BLOCKED", "feature_lead_implementation_blocked");
+      }
+
+      briefRevisedForBlock = true;
+      onEvent({ type: "redesign.escalated", cycle, result: implementationResult });
+      const revision = await planFeature({
+        previousBrief: designBrief,
+        redesignFeedback:
+          `${feedback}\n\nA implementação recusou por exigir mudança de direção:\n` +
+          `${implementationResult.summary}\n\n` +
+          "Revise o brief para acomodar ou descartar esses achados de forma explícita.",
+      });
+      cycleState.designRevision = revision;
       state.cycles.push(cycleState);
-      return finish("BLOCKED", "feature_lead_implementation_blocked");
+      if (revision.status === "BLOCKED") {
+        return finish("BLOCKED", "feature_lead_revision_blocked");
+      }
+      designBrief = revision;
+      state.designBrief = revision;
+      contractDelivered = false;
+      primedSpecialists.code_reviewer = false;
+      primedSpecialists.ux_auditor = false;
+      await saveState();
+      beforeFingerprint = afterFingerprint;
+      continue;
     }
 
     const gates = resolveGates(designBrief, gateOverrides);
