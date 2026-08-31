@@ -1,3 +1,5 @@
+import { compactEvidence } from "./evidence.js";
+
 export const featureLead = {
   name: "feature_lead",
   description:
@@ -9,8 +11,11 @@ export const featureLead = {
     marketAnalysis,
     previousBrief,
     redesignFeedback,
+    baselineEvidence,
+    appRules,
   }) {
     const marketContext = compactMarketEvidence(marketAnalysis);
+    const baseline = compactEvidence(baselineEvidence);
     return `
 Você é feature_lead. Você será dono desta feature até a conclusão, nesta mesma thread.
 
@@ -23,9 +28,18 @@ Use $feature-design-orchestrator. Aplique seu roteamento por estágio:
 - não chame todos os especialistas por padrão;
 - resolva conflitos por: conclusão, usabilidade, clareza, acessibilidade, convenções, consistência e estética.
 
+Antes de desenhar qualquer coisa, decida se vale a pena construir:
+- worthBuilding="yes" quando o ganho para o usuário justifica o custo desta mudança.
+- worthBuilding="reduce" quando só uma parte se paga; reducedScope lista o que fazer agora, na ordem.
+- worthBuilding="no" quando o esforço não se paga, já existe caminho equivalente no app, ou a
+  evidência de mercado indica que isso não é o que trava o usuário. Aqui o loop para e não gasta código.
+- worthReason cita o motivo concreto: sinal de mercado, estado atual do app ou custo desproporcional.
+- Não use "no" por gosto pessoal, por preguiça de implementar ou por escopo apenas grande.
+
 Regras:
 - Esta é a fase de maior investimento intelectual: use reasoning para fechar UX e direção visual profissional antes de pensar em código.
 - Não simplifique uma decisão de design relevante apenas para facilitar implementação; preserve usabilidade, acessibilidade e convenções de plataforma.
+- Quando houver screenshot do estado atual, julgue pelo que está na tela; o código serve para localizar a causa.
 - Faça uma inspeção dirigida: no máximo 12 arquivos e 6 chamadas de shell.
 - Não releia arquivo ou referência. Não carregue pastas inteiras.
 - Não execute npm, Metro, Gradle, ADB ou testes nesta etapa.
@@ -55,6 +69,14 @@ ${marketContext ? JSON.stringify(marketContext) : "Não solicitado ou indisponí
 Brief anterior:
 ${previousBrief ? JSON.stringify(compactDesignBrief(previousBrief)) : "Nenhum."}
 
+Decisões já tomadas pelo dono do app. São invariantes: não reabra, não "melhore",
+não troque por alternativa que você considere superior. Se uma delas impedir a tarefa,
+diga isso em blockers em vez de contrariá-la.
+${appRules || "Nenhuma registrada."}
+
+Estado atual da tela, capturado no device antes desta análise:
+${baseline ? JSON.stringify(baseline) : "Não capturado; decida pelo código."}
+
 Feedback que exige redesenho:
 ${redesignFeedback || "Nenhum."}
 
@@ -68,7 +90,11 @@ Retorne somente JSON solicitado.
     cycle,
     feedback,
     designBrief,
+    contractDelivered = false,
   }) {
+    if (contractDelivered) {
+      return buildCorrectionPromptText({ cycle, feedback });
+    }
     const contract = buildImplementationContract({
       task,
       acceptanceCriteria,
@@ -105,6 +131,10 @@ Edite o projeto e retorne somente JSON solicitado.
 `.trim();
   },
 
+  buildCorrectionPrompt({ cycle, feedback }) {
+    return buildCorrectionPromptText({ cycle, feedback });
+  },
+
   buildPlanningContinuationPrompt() {
     return `
 Continue como feature_lead na MESMA thread. Pare toda inspeção agora.
@@ -130,6 +160,32 @@ Finalize e retorne somente JSON solicitado.
   },
 };
 
+function buildCorrectionPromptText({ cycle, feedback }) {
+  return `
+Continue como feature_lead na MESMA sessão. O contrato de execução já está nesta
+conversa e continua valendo integralmente: objetivo, decisões, plano,
+implementationConstraints, outOfScope e acceptanceChecks seguem inalterados.
+
+Regras:
+- Não recomece, não redesenhe e não reabra decisões aprovadas.
+- Não repita o contrato nem reinspecione o que já foi lido nesta sessão.
+- Corrija somente os achados abaixo e preserve o restante da implementação.
+- Não persiga nada listado em outOfScope.
+- Prefira verificações direcionadas, curtas e filtradas por RTK.
+- Não execute nem bloqueie por ADB; tester e ux_auditor validam depois.
+- Não inicie agentes.
+- BLOCKED somente por impossibilidade técnica concreta, permissão/credencial
+  ausente ou contradição entre workspace e contrato.
+
+Ciclo: ${cycle}
+
+Achados a corrigir:
+${feedback || "Nenhum."}
+
+Edite o projeto e retorne somente JSON solicitado.
+`.trim();
+}
+
 function compactText(value, maxLength = 600) {
   if (typeof value !== "string") return value;
   if (value.length <= maxLength) return value;
@@ -151,6 +207,9 @@ export function compactDesignBrief(brief) {
     classification: brief.classification,
     route: brief.route,
     routeSummary: compactText(brief.routeSummary, 300),
+    worthBuilding: brief.worthBuilding,
+    worthReason: compactText(brief.worthReason, 400),
+    reducedScope: compactList(brief.reducedScope, 5, 400),
     userGoal: compactText(brief.userGoal, 600),
     behaviorDecisions: compactList(brief.behaviorDecisions, 8, 700),
     visualDirection: compactList(brief.visualDirection, 10, 700),
@@ -181,6 +240,7 @@ export function buildImplementationContract({
     objective: compactText(task, 1_000),
     acceptanceCriteria: compactText(acceptanceCriteria, 1_200),
     userGoal: brief?.userGoal,
+    reducedScope: brief?.reducedScope ?? [],
     behaviorDecisions: brief?.behaviorDecisions ?? [],
     visualDirection: brief?.visualDirection ?? [],
     implementationPlan: brief?.implementationPlan ?? [],
@@ -202,6 +262,12 @@ export function compactMarketEvidence(analysis) {
   return {
     status: analysis.status,
     summary: compactText(analysis.summary, 700),
+    signals: (analysis.signals ?? []).slice(0, 6).map((signal) => ({
+      quote: compactText(signal.quote, 200),
+      meaning: compactText(signal.meaning, 240),
+      app: signal.app,
+      strength: signal.strength,
+    })),
     opportunities: compactList(analysis.opportunities, 5, 400),
     risks: compactList(analysis.risks, 5, 400),
     featureContext: compactList(analysis.featureContext, 5, 400),
