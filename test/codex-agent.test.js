@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildInternalCodexConfig,
+  discoverCodexMcpServers,
   CodexAgentRuntime,
 } from "../src/codex-agent.js";
 import { featurePlanOutputSchema } from "../src/schemas.js";
@@ -51,10 +52,24 @@ function completedThread(response) {
   };
 }
 
-test("desativa Expo MCP somente nas execuções internas", () => {
-  assert.deepEqual(buildInternalCodexConfig(), {
-    mcp_servers: { expo_mcp: { enabled: false } },
+test("desativa todo MCP nas execuções internas", () => {
+  assert.deepEqual(buildInternalCodexConfig(["expo_mcp", "figma"]), {
+    mcp_servers: {
+      expo_mcp: { enabled: false },
+      figma: { enabled: false },
+    },
   });
+
+  const discovered = discoverCodexMcpServers("/caminho/inexistente.toml");
+  assert.ok(discovered.includes("expo_mcp"));
+  assert.ok(discovered.includes("figma"));
+  assert.ok(discovered.includes("github"));
+
+  const config = buildInternalCodexConfig();
+  assert.ok(Object.keys(config.mcp_servers).length >= 3);
+  assert.ok(
+    Object.values(config.mcp_servers).every((server) => server.enabled === false),
+  );
 });
 
 test("schema do planejamento usa somente restrições aceitas pelo Codex", () => {

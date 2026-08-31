@@ -1,15 +1,18 @@
 import { Codex } from "@openai/codex-sdk";
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { codeReviewer } from "../agents/code-reviewer.js";
 import { featureLead } from "../agents/feature-lead.js";
-import { marketAnalyst } from "../agents/market-analyst.js";
+import { marketAnalyst, marketLanes } from "../agents/market-analyst.js";
 import { tester } from "../agents/tester.js";
 import { uxAuditor } from "../agents/ux-auditor.js";
 import {
   codeReviewerOutputSchema,
   featurePlanOutputSchema,
   implementationOutputSchema,
-  marketAnalysisOutputSchema,
+  marketLaneOutputSchema,
   auditorOutputSchema,
   testerOutputSchema,
 } from "./schemas.js";
@@ -17,38 +20,85 @@ import {
   AgentTimeoutError,
   compactOptions,
   parseStructuredResponse,
+  runMarketLanes,
   safeProgress,
 } from "./runtime-common.js";
 
 export { AgentTimeoutError } from "./runtime-common.js";
 
-export function buildInternalCodexConfig(
-  disabledMcpServers = ["expo_mcp"],
+const FALLBACK_MCP_SERVERS = [
+  "expo_mcp",
+  "figma",
+  "github",
+  "filesystem",
+  "http_mcp",
+  "metro_mcp",
+  "react_native_mcp",
+  "openaiDeveloperDocs",
+  "businessmap_cards",
+  "node_repl",
+  "computer-use",
+];
+
+export function discoverCodexMcpServers(
+  configPath = path.join(os.homedir(), ".codex", "config.toml"),
 ) {
+  try {
+    const raw = readFileSync(configPath, "utf8");
+    const names = new Set();
+    for (const match of raw.matchAll(/^\s*\[+\s*mcp_servers\.([A-Za-z0-9_.-]+)/gm)) {
+      names.add(match[1].split(".")[0]);
+    }
+    return names.size ? [...names] : FALLBACK_MCP_SERVERS;
+  } catch {
+    return FALLBACK_MCP_SERVERS;
+  }
+}
+
+export function buildInternalCodexConfig(disabledMcpServers) {
+  const servers = disabledMcpServers ?? discoverCodexMcpServers();
   return {
     mcp_servers: Object.fromEntries(
-      disabledMcpServers.map((server) => [server, { enabled: false }]),
+      servers.map((server) => [server, { enabled: false }]),
     ),
   };
 }
 
+function shorten(value, maxLength = 60) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
+}
+
 function progressDetail(event) {
-  if (event.type === "thread.started") return "thread iniciada";
+  if (event.type === "thread.started") return "sessão iniciada";
   if (event.type === "turn.started") return "turno iniciado";
   if (event.type === "turn.completed") return "resposta concluída";
   if (!event.item) return event.type;
   if (event.item.type === "command_execution") {
-    return event.type === "item.completed"
-      ? `comando concluído (${event.item.exit_code ?? "?"})`
-      : "comando em execução";
+    const command = shorten(event.item.command, 52);
+    if (event.type === "item.completed") {
+      return `comando concluído (${event.item.exit_code ?? "?"})${command ? `: ${command}` : ""}`;
+    }
+    return command ? `rodando: ${command}` : "rodando comando";
   }
   if (event.item.type === "file_change") {
-    return `arquivos atualizados: ${event.item.changes.length}`;
+    const names = (event.item.changes ?? [])
+      .map((change) => change.path?.split("/").pop())
+      .filter(Boolean)
+      .slice(0, 3);
+    return names.length
+      ? `editando ${names.join(", ")}`
+      : `arquivos atualizados: ${event.item.changes.length}`;
   }
-  if (event.item.type === "web_search") return "pesquisa web";
-  if (event.item.type === "mcp_tool_call") return "ferramenta em execução";
+  if (event.item.type === "web_search") {
+    return event.item.query
+      ? `pesquisando "${shorten(event.item.query, 44)}"`
+      : "pesquisando na web";
+  }
+  if (event.item.type === "mcp_tool_call") return "ferramenta externa";
   if (event.item.type === "todo_list") return "plano atualizado";
-  if (event.item.type === "reasoning") return "analisando";
+  if (event.item.type === "reasoning") return "raciocinando";
   if (event.item.type === "agent_message") return "preparando resposta";
   if (event.item.type === "error") return "erro reportado";
   return event.item.type;
@@ -152,7 +202,7 @@ export class CodexAgentRuntime {
     implementationTimeoutMs = Math.max(agentTimeoutMs * 3, 30 * 60_000),
     heartbeatMs = 15_000,
     codex,
-    disabledMcpServers = ["expo_mcp"],
+    disabledMcpServers,
     threadIds = {},
     auxiliaryModel,
   }) {
@@ -241,6 +291,20 @@ export class CodexAgentRuntime {
         thread: null,
       },
     };
+    this.openMarketLane = (laneId) => {
+      const name = `market_analyst:${laneId}`;
+      if (!this.threadSlots[name]) {
+        this.threadSlots[name] = {
+          savedId: null,
+          options: compactOptions({
+            ...this.threadSlots.market_analyst.options,
+            threadSource: `orquestrador-features/market-analyst-${laneId}`,
+          }),
+          thread: null,
+        };
+      }
+      return this.openThread(name);
+    };
     this.openThread = (agentName) => {
       const slot = this.threadSlots[agentName];
       if (!slot.thread) {
@@ -297,7 +361,7 @@ export class CodexAgentRuntime {
   planFeature(context, { onProgress } = {}) {
     return this.run(
       this.openFeatureLead("design"),
-      featureLead.buildPlanningPrompt(context),
+      imageInput(featureLead.buildPlanningPrompt(context), context.baselineEvidence),
       featurePlanOutputSchema,
       featureLead.name,
       onProgress,
@@ -354,8 +418,18 @@ export class CodexAgentRuntime {
     return this.run(this.openThread("ux_auditor"), imageInput(uxAuditor.buildPrompt(context), context.evidence), auditorOutputSchema, uxAuditor.name, onProgress);
   }
 
-  runMarketAnalysis(context, { onProgress } = {}) {
-    return this.run(this.openThread("market_analyst"), marketAnalyst.buildDiscoveryPrompt(context), marketAnalysisOutputSchema, marketAnalyst.name, onProgress);
+  runMarketAnalysis(context, { onProgress, lanes = marketLanes } = {}) {
+    return runMarketLanes({
+      lanes,
+      runLane: (lane) =>
+        this.run(
+          this.openMarketLane(lane.id),
+          marketAnalyst.buildLanePrompt({ ...context, lane }),
+          marketLaneOutputSchema,
+          `${marketAnalyst.name}:${lane.id}`,
+          (progress) => onProgress?.({ ...progress, lane: lane.id }),
+        ),
+    });
   }
 
   getThreadIds() {

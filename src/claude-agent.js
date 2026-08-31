@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { codeReviewer } from "../agents/code-reviewer.js";
 import { featureLead } from "../agents/feature-lead.js";
-import { marketAnalyst } from "../agents/market-analyst.js";
+import { marketAnalyst, marketLanes } from "../agents/market-analyst.js";
 import { tester } from "../agents/tester.js";
 import { uxAuditor } from "../agents/ux-auditor.js";
 import {
@@ -15,13 +15,14 @@ import {
   codeReviewerOutputSchema,
   featurePlanOutputSchema,
   implementationOutputSchema,
-  marketAnalysisOutputSchema,
+  marketLaneOutputSchema,
   testerOutputSchema,
 } from "./schemas.js";
 import {
   AgentTimeoutError,
   compactOptions,
   parseStructuredResponse,
+  runMarketLanes,
   safeProgress,
 } from "./runtime-common.js";
 
@@ -131,6 +132,42 @@ function evidenceDirectories(evidence) {
   ];
 }
 
+function shorten(value, maxLength = 60) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
+}
+
+function toolDetail(tool) {
+  const input = tool.input ?? {};
+  const file = input.file_path ?? input.path ?? input.notebook_path;
+  const target = file ? path.basename(file) : "";
+
+  if (["Edit", "Write", "NotebookEdit"].includes(tool.name)) {
+    return target ? `editando ${target}` : "editando arquivos";
+  }
+  if (tool.name === "Read") return target ? `lendo ${target}` : "lendo arquivo";
+  if (tool.name === "Grep") {
+    return input.pattern ? `buscando "${shorten(input.pattern, 32)}"` : "buscando no código";
+  }
+  if (tool.name === "Glob") {
+    return input.pattern ? `listando ${shorten(input.pattern, 32)}` : "listando arquivos";
+  }
+  if (tool.name === "Bash") {
+    return input.command ? `rodando: ${shorten(input.command, 52)}` : "rodando comando";
+  }
+  if (tool.name === "WebSearch") {
+    return input.query ? `pesquisando "${shorten(input.query, 44)}"` : "pesquisando na web";
+  }
+  if (tool.name === "WebFetch") {
+    return input.url ? `lendo ${shorten(input.url, 52)}` : "lendo página";
+  }
+  if (tool.name === "Skill") {
+    return input.skill ? `usando skill ${input.skill}` : "usando skill";
+  }
+  return `usando ${tool.name}`;
+}
+
 function claudeProgressDetail(message) {
   if (message.type === "system" && message.subtype === "init") {
     return "sessão iniciada";
@@ -140,16 +177,11 @@ function claudeProgressDetail(message) {
     const tool = message.message?.content?.find(
       (block) => block.type === "tool_use",
     );
-    if (!tool) return "analisando";
-    if (["Edit", "Write", "NotebookEdit"].includes(tool.name)) {
-      return "arquivos atualizados: 1";
-    }
-    if (tool.name === "Bash") return "comando em execução";
-    if (["WebSearch", "WebFetch"].includes(tool.name)) return "pesquisa web";
-    return `ferramenta em execução: ${tool.name}`;
+    if (!tool) return "raciocinando";
+    return toolDetail(tool);
   }
   if (message.type === "system" && message.subtype === "task_progress") {
-    return message.summary || "trabalhando";
+    return shorten(message.summary, 70) || "trabalhando";
   }
   return message.type;
 }
@@ -311,7 +343,7 @@ export class ClaudeAgentRuntime {
     };
   }
 
-  async optionsFor({ agentName, phase, evidence }) {
+  async optionsFor({ agentName, phase, evidence, sessionKey = agentName }) {
     const isFeatureLead = agentName === "feature_lead";
     const isCode = isFeatureLead && phase === "code";
     const isMarket = agentName === "market_analyst";
@@ -352,13 +384,13 @@ export class ClaudeAgentRuntime {
       disallowedTools: isMarket
         ? ["Edit", "Write", "Bash", "Agent", "Task"]
         : ["Agent", "Task", "WebSearch", "WebFetch"],
-      settingSources: ["user", "project", "local"],
+      settingSources: isFeatureLead ? ["user", "project", "local"] : [],
       skills: discoveredSkills.names.length ? discoveredSkills.names : undefined,
       strictMcpConfig: true,
       additionalDirectories: additionalDirectories.length
         ? additionalDirectories
         : undefined,
-      resume: this.sessionIds[agentName] ?? undefined,
+      resume: this.sessionIds[sessionKey] ?? undefined,
     });
   }
 
@@ -370,8 +402,14 @@ export class ClaudeAgentRuntime {
     onProgress,
     timeoutMs = this.agentTimeoutMs,
     evidence,
+    sessionKey = agentName,
   ) {
-    const options = await this.optionsFor({ agentName, phase, evidence });
+    const options = await this.optionsFor({
+      agentName,
+      phase,
+      evidence,
+      sessionKey,
+    });
     return runStructuredClaudeTurn({
       queryFunction: this.queryFunction,
       prompt,
@@ -382,7 +420,7 @@ export class ClaudeAgentRuntime {
       heartbeatMs: this.heartbeatMs,
       onProgress,
       onSessionId: (sessionId) => {
-        this.sessionIds[agentName] = sessionId;
+        this.sessionIds[sessionKey] = sessionId;
       },
     });
   }
@@ -394,6 +432,8 @@ export class ClaudeAgentRuntime {
       featureLead.buildPlanningPrompt(context),
       featurePlanOutputSchema,
       onProgress,
+      this.agentTimeoutMs,
+      context.baselineEvidence,
     );
   }
 
@@ -463,14 +503,21 @@ export class ClaudeAgentRuntime {
     );
   }
 
-  runMarketAnalysis(context, { onProgress } = {}) {
-    return this.run(
-      marketAnalyst.name,
-      "research",
-      marketAnalyst.buildDiscoveryPrompt(context),
-      marketAnalysisOutputSchema,
-      onProgress,
-    );
+  runMarketAnalysis(context, { onProgress, lanes = marketLanes } = {}) {
+    return runMarketLanes({
+      lanes,
+      runLane: (lane) =>
+        this.run(
+          marketAnalyst.name,
+          "research",
+          marketAnalyst.buildLanePrompt({ ...context, lane }),
+          marketLaneOutputSchema,
+          (progress) => onProgress?.({ ...progress, lane: lane.id }),
+          this.agentTimeoutMs,
+          undefined,
+          `market_analyst:${lane.id}`,
+        ),
+    });
   }
 
   getSessionIds() {
