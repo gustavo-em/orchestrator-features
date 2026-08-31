@@ -5,3 +5,7 @@ runs/*-artifacts/
 .DS_Store
 *.log
 .claude-skill-bridge/
+runs/*.html
+runs/market-cache/
+worktrees/
+runs/locks/

@@ -1,0 +1,7 @@
+[
+  { "action": "wait", "ms": 2500 },
+  { "action": "checkpoint", "name": "today-abertura" },
+  { "action": "swipe", "x1": 540, "y1": 1500, "x2": 540, "y2": 700, "duration": 400 },
+  { "action": "wait", "ms": 600 },
+  { "action": "checkpoint", "name": "today-rolado" }
+]
