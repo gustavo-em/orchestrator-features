@@ -1,0 +1,15 @@
+{
+  "provider": "claude",
+  "androidPackage": "com.ideiasorganizetask",
+  "androidActivity": ".MainActivity",
+  "adbSteps": "adb/hoje.json",
+  "profile": "unattended",
+  "appCategory": "Produtividade e organização de tarefas",
+  "competitors": [
+    "Todoist",
+    "TickTick",
+    "Microsoft To Do",
+    "Things 3",
+    "Any.do"
+  ]
+}

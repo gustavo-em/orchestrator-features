@@ -63,7 +63,7 @@ test("wizard usa package detectado sem pedir flags", async (t) => {
       "low",
     ],
     confirms: [true],
-    selects: ["codex", "full"],
+    selects: ["", "codex", "full"],
   });
 
   const config = await runInteractiveWizard({ prompter });
@@ -104,7 +104,7 @@ test("wizard seleciona Claude Code", async (t) => {
       "low",
     ],
     confirms: [false],
-    selects: ["claude", "none"],
+    selects: ["fast", "claude", "none"],
   });
 
   const config = await runInteractiveWizard({ prompter });

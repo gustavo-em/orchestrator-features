@@ -2,6 +2,9 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
+import { loadAppRules, loadProjectConfig } from "./app-config.js";
+import { assertNotOrchestrator, orchestratorRoot } from "./paths.js";
+import { profiles } from "./profiles.js";
 import { detectReactNativeProject } from "./project-detector.js";
 
 export class TerminalPrompter {
@@ -64,9 +67,18 @@ export async function runInteractiveWizard({
   currentDirectory = process.cwd(),
 } = {}) {
   try {
-    const projectPath = path.resolve(
-      await prompter.text("Pasta do app React Native", currentDirectory),
+    const suggestion =
+      path.resolve(currentDirectory) === orchestratorRoot ? "" : currentDirectory;
+    const answer = await prompter.text(
+      "Pasta do app React Native (caminho completo)",
+      suggestion,
     );
+    if (!answer) {
+      throw new Error(
+        "Informe a pasta do app React Native, por exemplo /Users/voce/Documents/meu-app.",
+      );
+    }
+    const projectPath = assertNotOrchestrator(path.resolve(answer));
     await access(projectPath);
     const detected = await detectReactNativeProject(projectPath);
 
@@ -78,13 +90,38 @@ export async function runInteractiveWizard({
       if (!proceed) throw new Error("Projeto cancelado: React Native não detectado.");
     }
 
+    const app = await loadProjectConfig(projectPath);
+    const appRules = await loadAppRules(app);
+    if (app.exists) {
+      prompter.output?.write(
+        `Configuração encontrada em apps/${app.name}.\n`,
+      );
+    }
+
+    const profileName = await prompter.select(
+      "Perfil de execução:",
+      [
+        {
+          label: `unattended — ${profiles.unattended.description}`,
+          value: "unattended",
+        },
+        { label: `fast — ${profiles.fast.description}`, value: "fast" },
+        {
+          label: "nenhum — o brief decide os gates, mercado desligado",
+          value: "",
+        },
+      ],
+      app.profile === "fast" ? 1 : app.profile === "unattended" ? 0 : 2,
+    );
+    const profile = profileName ? profiles[profileName] : null;
+
     const provider = await prompter.select(
       "Agente de desenvolvimento:",
       [
         { label: "Codex", value: "codex" },
         { label: "Claude Code", value: "claude" },
       ],
-      0,
+      (app.provider ?? "codex") === "claude" ? 1 : 0,
     );
 
     const task = await prompter.text("Feature a implementar");
@@ -123,7 +160,7 @@ export async function runInteractiveWizard({
     }
 
     let marketingMode = await prompter.select(
-      "Análise de marketing:",
+      "Análise de mercado:",
       [
         { label: "Contexto antes da implementação", value: "context" },
         {
@@ -132,7 +169,11 @@ export async function runInteractiveWizard({
         },
         { label: "Desativada", value: "none" },
       ],
-      0,
+      (profile?.marketingMode ?? app.marketingMode ?? "context") === "none"
+        ? 2
+        : (profile?.marketingMode ?? app.marketingMode) === "full"
+          ? 1
+          : 0,
     );
     if (marketingMode === "full" && !android) {
       marketingMode = "context";
@@ -157,7 +198,13 @@ export async function runInteractiveWizard({
       projectPath,
       task,
       acceptanceCriteria,
-      maxCycles: parseCycles(await prompter.text("Máximo de ciclos", "3")),
+      profileName: profileName || null,
+      gateOverrides: profile?.gateOverrides ?? {},
+      appRules,
+      appName: app.exists ? app.name : null,
+      maxCycles: parseCycles(
+        await prompter.text("Máximo de ciclos", String(profile?.maxCycles ?? 3)),
+      ),
       agentTimeoutMs: parseTimeoutMinutes(
         await prompter.text("Timeout por agente em minutos", "10"),
       ),
@@ -169,13 +216,18 @@ export async function runInteractiveWizard({
       ),
       designReasoningEffort: await prompter.text(
         "Reasoning de design/UX",
-        "high",
+        profile?.designReasoningEffort ?? "high",
       ),
       codeReasoningEffort: await prompter.text(
         "Reasoning de implementação",
-        "low",
+        profile?.codeReasoningEffort ?? "low",
       ),
-      android,
+      android: android
+        ? {
+            ...android,
+            stepsFile: android.stepsFile || app.adbSteps || "",
+          }
+        : null,
       marketing: {
         mode: marketingMode,
         appContext: {

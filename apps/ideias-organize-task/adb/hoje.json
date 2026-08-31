@@ -1,0 +1,13 @@
+[
+  { "action": "wait", "ms": 2000 },
+  { "action": "checkpoint", "name": "today-abertura" },
+  { "action": "scrollToEnd", "times": 3 },
+  { "action": "checkpoint", "name": "today-fim-colapsado" },
+  { "action": "tapText", "value": "Sem prazo", "optional": true },
+  { "action": "wait", "ms": 900 },
+  { "action": "scrollToEnd", "times": 4 },
+  { "action": "checkpoint", "name": "today-sem-prazo-expandido" },
+  { "action": "tapText", "value": "Atrasadas", "optional": true },
+  { "action": "wait", "ms": 900 },
+  { "action": "checkpoint", "name": "today-atrasadas-expandido" }
+]
