@@ -1,0 +1,15 @@
+[
+  {
+    "action": "tap",
+    "x": 210,
+    "y": 620
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "checkpoint",
+    "name": "feature-screen"
+  }
+]

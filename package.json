@@ -1,0 +1,22 @@
+{
+  "name": "orquestrador-features",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Loop multiagente para implementar e auditar features mobile/React Native com Codex.",
+  "bin": {
+    "orquestrar-features": "src/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "check": "node --check src/cli.js && node --check src/orchestrator.js && node --check src/runtime-common.js && node --check src/runtime-factory.js && node --check src/codex-agent.js && node --check src/claude-agent.js && node --check src/android-test-driver.js && node --check src/project-detector.js && node --check src/wizard.js && node --check agents/feature-lead.js && node --check agents/code-reviewer.js && node --check agents/market-analyst.js && node --check agents/tester.js && node --check agents/ux-auditor.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.251",
+    "@openai/codex-sdk": "0.151.0"
+  }
+}

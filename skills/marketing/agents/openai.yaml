@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marketing de Apps"
+  short_description: "Analisa concorrentes e posicionamento de apps"
+  default_prompt: "Use $marketing para pesquisar concorrentes e posicionamento antes de desenhar esta feature."

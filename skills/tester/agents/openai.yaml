@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tester Mobile Econômico"
+  short_description: "Testa telas mobile consumindo poucos tokens"
+  default_prompt: "Use $tester para validar esta tela mobile com evidência mínima."

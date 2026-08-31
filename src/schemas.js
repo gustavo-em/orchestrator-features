@@ -1,0 +1,312 @@
+export const implementationOutputSchema = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["FINISHED", "BLOCKED"],
+    },
+    summary: { type: "string" },
+    changes: {
+      type: "array",
+      items: { type: "string" },
+    },
+    tests: {
+      type: "array",
+      items: { type: "string" },
+    },
+    blockers: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: ["status", "summary", "changes", "tests", "blockers"],
+  additionalProperties: false,
+};
+
+export const featurePlanOutputSchema = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["READY", "BLOCKED"] },
+    summary: { type: "string" },
+    classification: {
+      type: "string",
+      enum: ["meaningful", "trivial", "backend_only"],
+    },
+    route: {
+      type: "array",
+      maxItems: 2,
+      items: { type: "string", enum: ["mobile-design", "design_director"] },
+    },
+    routeSummary: { type: "string" },
+    userGoal: { type: "string" },
+    behaviorDecisions: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+    visualDirection: {
+      type: "array",
+      maxItems: 10,
+      items: { type: "string" },
+    },
+    implementationPlan: {
+      type: "array",
+      maxItems: 10,
+      items: { type: "string" },
+    },
+    implementationConstraints: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+    outOfScope: {
+      type: "array",
+      maxItems: 6,
+      items: { type: "string" },
+    },
+    acceptanceChecks: {
+      type: "array",
+      maxItems: 10,
+      items: { type: "string" },
+    },
+    requiresScreenTest: { type: "boolean" },
+    requiresDesignCheck: { type: "boolean" },
+    requiresUxAudit: { type: "boolean" },
+    requiresCodeReview: { type: "boolean" },
+    blockers: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "status",
+    "summary",
+    "classification",
+    "route",
+    "routeSummary",
+    "userGoal",
+    "behaviorDecisions",
+    "visualDirection",
+    "implementationPlan",
+    "implementationConstraints",
+    "outOfScope",
+    "acceptanceChecks",
+    "requiresScreenTest",
+    "requiresDesignCheck",
+    "requiresUxAudit",
+    "requiresCodeReview",
+    "blockers",
+  ],
+  additionalProperties: false,
+};
+
+export const auditorOutputSchema = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["PASS", "CHANGES_REQUIRED", "BLOCKED"],
+    },
+    summary: { type: "string" },
+    requiresRedesign: { type: "boolean" },
+    findings: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          priority: {
+            type: "string",
+            enum: ["critical", "high", "medium", "low"],
+          },
+          title: { type: "string" },
+          evidence: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["priority", "title", "evidence", "recommendation"],
+        additionalProperties: false,
+      },
+    },
+    checksPerformed: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: [
+    "status",
+    "summary",
+    "requiresRedesign",
+    "findings",
+    "checksPerformed",
+  ],
+  additionalProperties: false,
+};
+
+export const designCheckOutputSchema = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["PASS", "CHANGES_REQUIRED", "BLOCKED"],
+    },
+    summary: { type: "string" },
+    requiresRedesign: { type: "boolean" },
+    findings: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: {
+          priority: {
+            type: "string",
+            enum: ["critical", "high", "medium", "low"],
+          },
+          title: { type: "string" },
+          evidence: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["priority", "title", "evidence", "recommendation"],
+        additionalProperties: false,
+      },
+    },
+    checksPerformed: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+  },
+  required: [
+    "status",
+    "summary",
+    "requiresRedesign",
+    "findings",
+    "checksPerformed",
+  ],
+  additionalProperties: false,
+};
+
+export const testerOutputSchema = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["PASS", "FAIL", "BLOCKED"],
+    },
+    summary: { type: "string" },
+    findings: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: {
+          priority: {
+            type: "string",
+            enum: ["critical", "high", "medium", "low"],
+          },
+          title: { type: "string" },
+          evidence: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["priority", "title", "evidence", "recommendation"],
+        additionalProperties: false,
+      },
+    },
+    observations: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+  },
+  required: ["status", "summary", "findings", "observations"],
+  additionalProperties: false,
+};
+
+export const codeReviewerOutputSchema = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["PASS", "CHANGES_REQUIRED", "BLOCKED"],
+    },
+    summary: { type: "string" },
+    findings: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: {
+          priority: {
+            type: "string",
+            enum: ["critical", "high", "medium", "low"],
+          },
+          title: { type: "string" },
+          evidence: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["priority", "title", "evidence", "recommendation"],
+        additionalProperties: false,
+      },
+    },
+    checksPerformed: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+  },
+  required: ["status", "summary", "findings", "checksPerformed"],
+  additionalProperties: false,
+};
+
+export const marketAnalysisOutputSchema = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["COMPLETE", "BLOCKED"] },
+    summary: { type: "string" },
+    competitors: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          relevance: { type: "string" },
+          strengths: { type: "array", maxItems: 3, items: { type: "string" } },
+          weaknesses: { type: "array", maxItems: 3, items: { type: "string" } },
+          featurePattern: { type: "string" },
+          sourceUrls: {
+            type: "array",
+            maxItems: 3,
+            items: { type: "string" },
+          },
+        },
+        required: [
+          "name",
+          "relevance",
+          "strengths",
+          "weaknesses",
+          "featurePattern",
+          "sourceUrls",
+        ],
+        additionalProperties: false,
+      },
+    },
+    opportunities: {
+      type: "array",
+      maxItems: 5,
+      items: { type: "string" },
+    },
+    risks: { type: "array", maxItems: 5, items: { type: "string" } },
+    featureContext: {
+      type: "array",
+      maxItems: 5,
+      items: { type: "string" },
+    },
+    accessedAt: { type: "string" },
+  },
+  required: [
+    "status",
+    "summary",
+    "competitors",
+    "opportunities",
+    "risks",
+    "featureContext",
+    "accessedAt",
+  ],
+  additionalProperties: false,
+};
