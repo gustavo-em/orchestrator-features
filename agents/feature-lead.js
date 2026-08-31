@@ -72,6 +72,11 @@ ${previousBrief ? JSON.stringify(compactDesignBrief(previousBrief)) : "Nenhum."}
 Decisões já tomadas pelo dono do app. São invariantes: não reabra, não "melhore",
 não troque por alternativa que você considere superior. Se uma delas impedir a tarefa,
 diga isso em blockers em vez de contrariá-la.
+
+Uma regra que manda corrigir algo não pode virar restrição que manda preservar. Nada em
+implementationConstraints ou outOfScope pode proteger o que as regras mandam mudar, nem por
+alegação de que naquele ponto a semântica é outra — se a regra nomeia o arquivo ou o caso,
+ele está dentro do escopo.
 ${appRules || "Nenhuma registrada."}
 
 Estado atual da tela, capturado no device antes desta análise:

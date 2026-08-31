@@ -18,15 +18,23 @@ Quando bater a vontade de "agrupar melhor", a resposta é espaçamento, não out
 
 ## Cor
 
-Vermelho (`theme.colors.danger`) é exclusivo de ação destrutiva: hoje, só o botão Excluir.
+`theme.colors.danger` é exclusivo de ação destrutiva. Hoje isso significa **um único lugar**:
+o botão Excluir, em `ConfirmDialog.tsx`.
 
-Qualquer outro elemento que use vermelho é uma violação a corrigir, não um invariante a
-preservar. Isso inclui estado de atraso, contadores, badges e o glifo de prioridade alta em
-`TaskFacts.tsx`, que hoje usa `danger` e precisa de outro tratamento — peso, forma ou uma cor
-de destaque não-alarmante do design system.
+Em `TaskFacts.tsx` existem dois usos de `danger`, e **os dois são violações a corrigir**:
 
-Esta regra manda *tirar* vermelho, nunca manda deixar como está. Se um achado apontar vermelho
-fora do Excluir, o achado está certo.
+- `priorityColor`, vindo de `toneOf[facts.priority.tone]` — pinta o glifo `≡` de vermelho em
+  tarefa de prioridade alta.
+- `dueColor`, quando `facts.due?.late` — pinta a data de vermelho em tarefa atrasada.
+
+Nenhum dos dois é ação destrutiva. Prioridade alta não é perigo e atraso não é perigo; os dois
+precisam de outro tratamento — peso tipográfico, forma do glifo, ou uma cor de destaque
+não-alarmante do design system. O mesmo vale para o uso equivalente em `ListsScreen.tsx`.
+
+Esta regra manda **tirar** vermelho, nunca manda preservar. Não escreva em
+`implementationConstraints` nem em `outOfScope` nada que mantenha esses usos como estão, e não
+justifique preservá-los alegando semântica diferente: a semântica é justamente o problema.
+Se um achado apontar vermelho fora do Excluir, o achado está certo.
 
 ## Linguagem
 

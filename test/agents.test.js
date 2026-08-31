@@ -287,6 +287,8 @@ test("regras do dono do app entram no planejamento como invariante", () => {
   assert.match(prompt, /São invariantes/);
   assert.match(prompt, /Filete de seção fica/);
   assert.match(prompt, /diga isso em blockers/);
+  assert.match(prompt, /não pode virar restrição que manda preservar/);
+  assert.match(prompt, /alegação de que naquele ponto a semântica é outra/);
 
   const semRegras = featureLead.buildPlanningPrompt({
     task: "Melhorar a tela",
