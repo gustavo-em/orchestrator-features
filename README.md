@@ -244,6 +244,12 @@ pid 40457, desde 12:57:39 (0 min), tarefa: melhorar a tela de foco.
 `--wait <minutos>` entra na fila em vez de recusar. Trava de processo morto é detectada
 pelo pid e reaproveitada.
 
+A mesma espera vale para os serviços: antes de começar, o run confere se o device
+aparece em `adb devices` e se o Metro responde na porta. Sem `--wait`, falha na hora
+dizendo o que falta; com `--wait`, espera o outro terminal liberar. Porta ocupada por um
+processo que não responde como Metro é distinguida de Metro ausente, porque a correção é
+outra.
+
 ### Lote
 
 ```bash
@@ -271,7 +277,8 @@ com screenshots embutidos.
 | `--profile <fast\|unattended>` | Mercado, reasoning, ciclos e gates de uma vez |
 | `--resume <estado.json>` | Retoma um run que parou |
 | `--retries <0-5>` | Retoma sozinho quando faz sentido |
-| `--wait <minutos>` | Fila em vez de recusa quando há colisão |
+| `--wait <minutos>` | Fila em vez de recusa: trava, Metro e device |
+| `--metro-port <porta>` | Porta conferida antes de começar. Padrão 8081 |
 | `--marketing-mode <none\|context\|full>` | Pesquisa de mercado |
 | `--provider <codex\|claude>` | Qual agente executa |
 

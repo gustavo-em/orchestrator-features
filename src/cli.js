@@ -22,6 +22,7 @@ import { createAgentRuntime, validateProvider } from "./runtime-factory.js";
 import { JsonRunStateStore } from "./state-store.js";
 import { runInteractiveWizard } from "./wizard.js";
 import { describeHolder, readHolder, withLocks } from "./lock.js";
+import { waitForDevice, waitForMetro } from "./services.js";
 import {
   checkProviderAuth,
   classifyOutcome,
@@ -75,8 +76,10 @@ Opções:
   --resume <runs/arquivo.json> Retoma um run que parou: reaproveita brief, pesquisa de mercado
                                e as sessões dos agentes, e pula direto para a implementação.
   --retries <0-5>              Retoma sozinho quando a parada for recuperável. Padrão: 0.
-  --wait <minutos>             Entra na fila quando outro run já usa o mesmo projeto ou device,
-                               em vez de recusar na hora. Padrão: 0.
+  --wait <minutos>             Espera em vez de recusar: vale para a trava de outro terminal e
+                               também para o Metro e o device ainda não disponíveis. Padrão: 0.
+  --metro-port <porta>         Porta do Metro conferida antes de começar. Padrão: 8081.
+  --skip-service-check         Não confere Metro nem device antes de começar.
   --dry-run                    Mostra o plano do lote (tarefas, gates, worktrees) e sai.
   --plan-only                  Só analisa e entrega o brief; não edita nenhum arquivo.
   --market-cache-days <n>      Reaproveita pesquisa de mercado recente. 0 desliga. Padrão: 7.
@@ -176,6 +179,8 @@ const KNOWN_FLAGS = new Set([
   "resume",
   "retries",
   "wait",
+  "metro-port",
+  "skip-service-check",
   "task",
   "task-file",
   "acceptance",
@@ -387,6 +392,8 @@ async function configFromArguments(args) {
     resumeFile: args.resume ? path.resolve(args.resume) : "",
     retries: parseRetries(args.retries),
     waitMs: parseWaitMinutes(args.wait),
+    metroPort: Number.parseInt(args["metro-port"] ?? "8081", 10),
+    skipServiceCheck: Boolean(args["skip-service-check"]),
     resumedBrief: resumed?.designBrief ?? null,
     resumedMarket: resumed?.marketAnalysis ?? null,
     resumedSessions: resumed?.sessionIds ?? resumed?.threadIds ?? null,
@@ -541,6 +548,33 @@ function resumeCommand(config, stateFile) {
   return parts.join(" ");
 }
 
+async function ensureServices(config) {
+  if (!config.android || config.skipServiceCheck) return;
+
+  const onWait = (why) =>
+    console.log(
+      hintLine(
+        `${why}. Esperando até ${Math.round((config.waitMs ?? 0) / 60_000)} min.`,
+      ),
+    );
+
+  const device = await waitForDevice({
+    deviceId: config.android.deviceId || undefined,
+    waitMs: config.waitMs ?? 0,
+    onWait,
+  });
+  console.log(
+    `${style.gray("Device".padEnd(11))}${device.devices?.join(", ") ?? config.android.deviceId}`,
+  );
+
+  await waitForMetro({
+    port: config.metroPort ?? 8081,
+    waitMs: config.waitMs ?? 0,
+    onWait,
+  });
+  console.log(`${style.gray("Metro".padEnd(11))}porta ${config.metroPort ?? 8081}`);
+}
+
 async function runOnce(config, { sessionIds, designBrief, printEvent }) {
   const runtime = await runtimeFactory(config, sessionIds)({
     projectPath: config.projectPath,
@@ -591,6 +625,8 @@ async function runSingle(config) {
     console.log(`\n${style.yellow("--dry-run: nada foi executado.")}`);
     return;
   }
+
+  await ensureServices(config);
 
   let sessionIds = config.resumedSessions ?? null;
   let designBrief = config.resumedBrief ?? null;
@@ -744,6 +780,7 @@ async function runTasksBatch(config) {
       style.gray("Device serializado: build, install e captura rodam uma tarefa por vez."),
     );
   }
+  await ensureServices(config);
 
   const marketAnalysis = await resolveMarketAnalysis(config, printEvent);
 
