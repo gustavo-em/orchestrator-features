@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { buildImplementationContract } from "../agents/feature-lead.js";
 import { runFeatureLoop } from "../src/orchestrator.js";
 
 class MemoryStore {
@@ -129,6 +130,8 @@ function fakeRuntime({
     continuationIndex: 0,
     planningContexts: [],
     executorContexts: [],
+    auditContexts: [],
+    codeReviewContexts: [],
     async planFeature(context) {
       this.planningContexts.push(context);
       return designs[this.designerIndex++];
@@ -141,13 +144,15 @@ function fakeRuntime({
       this.executorContexts.push({ ...context, continuation: true });
       return continuations[this.continuationIndex++];
     },
-    async runAudit() {
+    async runAudit(context) {
+      this.auditContexts.push(context);
       return audits[this.auditIndex++];
     },
     async runTester() {
       return testers[this.testerIndex++];
     },
-    async runCodeReview() {
+    async runCodeReview(context) {
+      this.codeReviewContexts.push(context);
       return codeReviews[this.codeReviewIndex++];
     },
     async runMarketAnalysis() {
@@ -222,6 +227,7 @@ const base = {
   projectPath: "/tmp/app",
   task: "Criar feature",
   acceptanceCriteria: "Funcionar e ser acessível",
+  collectDiff: async () => null,
 };
 
 test("feature_lead planeja, implementa na mesma sessão e UX aprova", async () => {
@@ -473,4 +479,167 @@ test("estado contabiliza tokens por agente e cache", async () => {
   assert.equal(result.usage.inputTokens, 30);
   assert.equal(result.usage.cachedInputTokens, 16);
   assert.equal(result.usage.byAgent.feature_lead.outputTokens, 8);
+});
+
+test("revisores recebem o diff do ciclo e o dev não repete o contrato", async () => {
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresCodeReview: true })],
+    executors: [executorResult(), executorResult("Corrigido")],
+    codeReviews: [review("CHANGES_REQUIRED"), review("PASS")],
+    audits: [review("PASS")],
+  });
+  let diffCalls = 0;
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => `f${diffCalls}`,
+    collectDiff: async () => {
+      diffCalls += 1;
+      return `diff-${diffCalls}`;
+    },
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(runtime.codeReviewContexts[0].diff, "diff-1");
+  assert.equal(runtime.codeReviewContexts[1].diff, "diff-2");
+  assert.equal(runtime.auditContexts[0].diff, "diff-2");
+  assert.equal(runtime.executorContexts[0].contractDelivered, false);
+  assert.equal(runtime.executorContexts[1].contractDelivered, true);
+  assert.equal(runtime.codeReviewContexts[0].sessionPrimed, false);
+  assert.equal(runtime.codeReviewContexts[1].sessionPrimed, true);
+  assert.equal(runtime.auditContexts[0].sessionPrimed, false);
+});
+
+test("redesenho do brief obriga o dev a receber o contrato novo", async () => {
+  const runtime = fakeRuntime({
+    designs: [brief(), brief({ summary: "Brief revisado" })],
+    executors: [executorResult(), executorResult("Corrigido")],
+    audits: [review("CHANGES_REQUIRED", { redesign: true }), review("PASS")],
+  });
+  const fingerprints = ["a", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(runtime.executorContexts[1].contractDelivered, false);
+  assert.equal(runtime.auditContexts[1].sessionPrimed, false);
+});
+
+test("brief que julga a feature sem retorno para o loop antes do código", async () => {
+  const runtime = fakeRuntime({
+    designs: [
+      brief({
+        worthBuilding: "no",
+        worthReason: "O app já resolve isso em dois toques na tela inicial.",
+      }),
+    ],
+  });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+  });
+
+  assert.equal(result.finalStatus, "STOPPED");
+  assert.equal(result.stopReason, "not_worth_building");
+  assert.equal(runtime.executorIndex, 0);
+  assert.equal(result.cycles.length, 0);
+});
+
+test("escopo reduzido chega ao contrato de implementação", async () => {
+  const runtime = fakeRuntime({
+    designs: [
+      brief({ worthBuilding: "reduce", reducedScope: ["Só renomear a aba"] }),
+    ],
+    audits: [review("PASS")],
+  });
+
+  await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+  });
+
+  const contract = buildImplementationContract({
+    task: base.task,
+    acceptanceCriteria: base.acceptanceCriteria,
+    designBrief: runtime.executorContexts[0].designBrief,
+    feedback: "",
+  });
+  assert.deepEqual(contract.reducedScope, ["Só renomear a aba"]);
+});
+
+test("plan-only entrega o brief sem tocar em arquivo", async () => {
+  const runtime = fakeRuntime();
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    planOnly: true,
+  });
+
+  assert.equal(result.finalStatus, "STOPPED");
+  assert.equal(result.stopReason, "plan_only");
+  assert.equal(runtime.executorIndex, 0);
+  assert.ok(result.designBrief.summary);
+});
+
+test("plan-only captura a tela atual antes de decidir", async () => {
+  const runtime = fakeRuntime();
+  const captured = [];
+  const screenTestDriver = {
+    async collectEvidence({ cycle }) {
+      captured.push(cycle);
+      return { uiNodes: "arvore", errors: "", screenshots: [{ name: "hoje", path: "/tmp/a.png" }] };
+    },
+  };
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    screenTestDriver,
+    planOnly: true,
+  });
+
+  assert.equal(result.stopReason, "plan_only");
+  assert.deepEqual(captured, [0]);
+  assert.equal(
+    runtime.planningContexts[0].baselineEvidence.screenshots[0].name,
+    "hoje",
+  );
+});
+
+test("sem gate visual o loop não gasta captura antes do planejamento", async () => {
+  const runtime = fakeRuntime({ audits: [review("PASS")] });
+  let calls = 0;
+
+  await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    screenTestDriver: {
+      async collectEvidence() {
+        calls += 1;
+        return { screenshots: [], uiNodes: "", errors: "" };
+      },
+    },
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(runtime.planningContexts[0].baselineEvidence, null);
 });

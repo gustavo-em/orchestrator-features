@@ -1,4 +1,15 @@
-import { workspaceFingerprint } from "./workspace.js";
+import { workspaceDiff, workspaceFingerprint } from "./workspace.js";
+
+export function resolveGates(designBrief, overrides = {}) {
+  const pick = (override, briefValue) =>
+    typeof override === "boolean" ? override : Boolean(briefValue);
+  return {
+    screenTest: pick(overrides.screenTest, designBrief?.requiresScreenTest),
+    designCheck: pick(overrides.designCheck, designBrief?.requiresDesignCheck),
+    uxAudit: pick(overrides.uxAudit, designBrief?.requiresUxAudit),
+    codeReview: pick(overrides.codeReview, designBrief?.requiresCodeReview),
+  };
+}
 
 function reviewSignature(review) {
   if (!review.findings?.length) {
@@ -103,7 +114,13 @@ export async function runFeatureLoop({
   stateStore,
   screenTestDriver,
   marketing,
+  marketAnalysis: precomputedMarketAnalysis = null,
+  appRules = "",
+  designBrief: resumedBrief = null,
+  gateOverrides = {},
+  planOnly = false,
   fingerprint = workspaceFingerprint,
+  collectDiff = workspaceDiff,
   onEvent = () => {},
 }) {
   const state = makeInitialState({
@@ -118,6 +135,12 @@ export async function runFeatureLoop({
   let feedback = "";
   let marketAnalysis = null;
   let designBrief = null;
+  let contractDelivered = false;
+  const primedSpecialists = {
+    code_reviewer: false,
+    tester: false,
+    ux_auditor: false,
+  };
   let beforeFingerprint = await fingerprint(projectPath);
   let saveChain = Promise.resolve();
 
@@ -197,6 +220,8 @@ export async function runFeatureLoop({
     return state;
   };
 
+  let baselineEvidence = null;
+
   const planFeature = async ({ previousBrief = null, redesignFeedback = "" } = {}) => {
     const revision = Boolean(previousBrief);
     onEvent({ type: revision ? "lead.revision.started" : "lead.planning.started" });
@@ -209,6 +234,8 @@ export async function runFeatureLoop({
             marketAnalysis,
             previousBrief,
             redesignFeedback,
+            baselineEvidence,
+            appRules,
           },
           { onProgress },
         ),
@@ -249,7 +276,11 @@ export async function runFeatureLoop({
 
   await saveState();
 
-  if (marketing && marketing.mode !== "none") {
+  if (precomputedMarketAnalysis) {
+    marketAnalysis = precomputedMarketAnalysis;
+    state.marketAnalysis = marketAnalysis;
+    await saveState();
+  } else if (marketing && marketing.mode !== "none") {
     onEvent({ type: "marketing.started" });
     try {
       marketAnalysis = await runStage("market_analyst", (onProgress) =>
@@ -267,7 +298,7 @@ export async function runFeatureLoop({
       marketAnalysis = {
         status: "BLOCKED",
         summary: error.message,
-        competitors: [],
+        signals: [],
         opportunities: [],
         risks: [],
         featureContext: [],
@@ -279,11 +310,41 @@ export async function runFeatureLoop({
     onEvent({ type: "marketing.completed", result: marketAnalysis });
   }
 
-  designBrief = await planFeature();
-  state.designBrief = designBrief;
-  await saveState();
+  const wantsBaseline =
+    Boolean(screenTestDriver) &&
+    (planOnly ||
+      gateOverrides.screenTest === true ||
+      gateOverrides.designCheck === true);
+  if (wantsBaseline) {
+    onEvent({ type: "baseline.started" });
+    try {
+      baselineEvidence = await screenTestDriver.collectEvidence({ cycle: 0 });
+      onEvent({ type: "baseline.completed", evidence: baselineEvidence });
+    } catch (error) {
+      onEvent({ type: "baseline.failed", message: error.message });
+    }
+  }
+
+  if (resumedBrief) {
+    designBrief = resumedBrief;
+    state.designBrief = designBrief;
+    await saveState();
+    onEvent({ type: "plan.resumed", result: designBrief });
+  } else {
+    designBrief = await planFeature();
+    state.designBrief = designBrief;
+    await saveState();
+  }
   if (designBrief.status === "BLOCKED") {
     return finish("BLOCKED", "feature_lead_blocked");
+  }
+  if (planOnly) {
+    onEvent({ type: "plan.only", result: designBrief });
+    return finish("STOPPED", "plan_only");
+  }
+  if (designBrief.worthBuilding === "no") {
+    onEvent({ type: "worth.rejected", result: designBrief });
+    return finish("STOPPED", "not_worth_building");
   }
 
   for (let cycle = 1; cycle <= maxCycles; cycle += 1) {
@@ -299,6 +360,7 @@ export async function runFeatureLoop({
             feedback,
             designBrief,
             marketAnalysis,
+            contractDelivered,
           },
           { onProgress },
         ),
@@ -326,8 +388,14 @@ export async function runFeatureLoop({
       }
     }
     onEvent({ type: "implementation.completed", cycle, result: implementationResult });
+    contractDelivered = true;
 
     const afterFingerprint = await fingerprint(projectPath);
+    let cycleDiff;
+    const diffForCycle = async () => {
+      if (cycleDiff === undefined) cycleDiff = await collectDiff(projectPath);
+      return cycleDiff;
+    };
     const madeWorkspaceProgress =
       beforeFingerprint === null ||
       afterFingerprint === null ||
@@ -347,8 +415,11 @@ export async function runFeatureLoop({
       return finish("BLOCKED", "feature_lead_implementation_blocked");
     }
 
-    if (designBrief.requiresCodeReview) {
+    const gates = resolveGates(designBrief, gateOverrides);
+
+    if (gates.codeReview) {
       onEvent({ type: "code_review.started", cycle });
+      const codeReviewDiff = await diffForCycle();
       try {
         cycleState.codeReview = await runStage("code_reviewer", (onProgress) =>
           runtime.runCodeReview(
@@ -358,10 +429,13 @@ export async function runFeatureLoop({
               cycle,
               designBrief,
               implementationResult,
+              diff: codeReviewDiff,
+              sessionPrimed: primedSpecialists.code_reviewer,
             },
             { onProgress },
           ),
         );
+        primedSpecialists.code_reviewer = true;
       } catch (error) {
         cycleState.codeReview = {
           status: "BLOCKED",
@@ -400,10 +474,8 @@ export async function runFeatureLoop({
     }
 
     let evidence = null;
-    const needsVisualAudit =
-      designBrief.requiresDesignCheck || marketing?.mode === "full";
-    const needsScreenEvidence =
-      designBrief.requiresScreenTest || needsVisualAudit;
+    const needsVisualAudit = gates.designCheck || marketing?.mode === "full";
+    const needsScreenEvidence = gates.screenTest || needsVisualAudit;
     if (screenTestDriver && needsScreenEvidence) {
       onEvent({ type: "tester.started", cycle });
       try {
@@ -416,10 +488,12 @@ export async function runFeatureLoop({
               cycle,
               implementationResult,
               evidence,
+              sessionPrimed: primedSpecialists.tester,
             },
             { onProgress },
           ),
         );
+        primedSpecialists.tester = true;
       } catch (error) {
         cycleState.tester = {
           status: "BLOCKED",
@@ -458,9 +532,10 @@ export async function runFeatureLoop({
       return finish("STOPPED", "design_evidence_unavailable");
     }
 
-    const needsAudit = needsVisualAudit || designBrief.requiresUxAudit;
+    const needsAudit = needsVisualAudit || gates.uxAudit;
     if (needsAudit) {
       onEvent({ type: "audit.started", cycle });
+      const auditDiff = await diffForCycle();
       try {
         cycleState.audit = await runStage("ux_auditor", (onProgress) =>
           runtime.runAudit(
@@ -472,10 +547,13 @@ export async function runFeatureLoop({
               marketAnalysis,
               implementationResult,
               evidence,
+              diff: auditDiff,
+              sessionPrimed: primedSpecialists.ux_auditor,
             },
             { onProgress },
           ),
         );
+        primedSpecialists.ux_auditor = true;
       } catch (error) {
         cycleState.audit = {
           status: "BLOCKED",
@@ -521,6 +599,9 @@ export async function runFeatureLoop({
         }
         designBrief = revision;
         state.designBrief = revision;
+        contractDelivered = false;
+        primedSpecialists.code_reviewer = false;
+        primedSpecialists.ux_auditor = false;
       }
       feedback = issueFeedback;
       await saveState();
