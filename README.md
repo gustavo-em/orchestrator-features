@@ -1,184 +1,295 @@
 # Orquestrador de Features
 
-Orquestrador híbrido em JavaScript para planejar, implementar, testar e auditar features React Native usando Codex ou Claude Code. O contexto principal permanece em uma única sessão do provedor escolhido; especialistas isolados são acionados somente quando agregam evidência.
+Loop multiagente que planeja, implementa e **valida no device** uma feature de app
+React Native — sem alguém olhando.
 
-## Provedores
+Você descreve a mudança. Ele decide se vale a pena, fecha a direção de UX, escreve o
+código, abre o app num emulador Android, tira screenshot, lê a árvore de UI e só então
+diz se passou. Se não passou, volta para o mesmo dev com os achados e tenta de novo.
 
-- `codex` (padrão): usa `@openai/codex-sdk` e a autenticação local do Codex.
-- `claude`: usa `@anthropic-ai/claude-agent-sdk`, sessões retomáveis e JSON Schema nativo.
-- O fluxo, prompts, critérios, ADB e estado são compartilhados; apenas execução, permissões, streaming e IDs de sessão mudam.
-- A escolha vale para toda a execução. Não há handoff entre modelos no meio de uma feature.
+Roda sobre **Claude Code** ou **Codex**, à sua escolha.
 
-## Agentes
+```
+-- configuracao ------------------------------------------------
+Projeto    /Users/voce/Documents/meu-app
+Provedor   Claude Code
+Perfil     unattended
+Config     meu-app
+Tarefa     apps/meu-app/tarefas/hoje.md
+Regras     34 linhas fixas
+Mercado    context
+Ciclos     3
+Reasoning  design medium / codigo low
+Android    com.exemplo.app
+Gates      tela sempre · design sempre · ux sempre · codigo o brief decide
+Credencial variável de ambiente
+-- mercado: minerando avaliacoes reais -------------------------
+mercado  COMPLETE abandono: motivo dominante é acúmulo visível
+mercado  "In Todoist, if you miss a deadline, the task turns red
+         and sits there glaring at you." - Todoist
+-- capturando a tela atual antes de decidir --------------------
+tela     estado atual capturado: 3 screenshot(s)
+-- feature_lead: decidindo UX e direcao visual -----------------
+lead     READY Hipótese confirmada: ATRASADAS aparece antes de HOJE
+lead     mobile-design → design_director
+-- ciclo 1: implementando --------------------------------------
+lead     editando TodayScreen.tsx 41s
+lead     FINISHED Seções reordenadas, contagem agregada removida
+-- ciclo 1: auditando UX e aparencia ---------------------------
+ux       CHANGES_REQUIRED Falta estado "em dia"
+ux       [high] Lista vazia genérica -> Separar dos dois estados
+```
 
-- `feature_lead`: sessão persistente. Planeja com reasoning `high`, implementa com `low` e recebe correções sem redescobrir o projeto.
-- `market_analyst`: opcional. Pesquisa concorrentes antes do planejamento.
-- `code_reviewer`: opcional. Entra somente para auth, persistência, migração, concorrência, módulos nativos ou mudanças estruturais arriscadas.
-- `tester`: opcional e barato. Valida screenshots e evidência Android condensada com reasoning `low`.
-- `ux_auditor`: opcional. Combina auditoria comportamental e checagem visual pós-implementação.
-- O processo JavaScript é o orquestrador. Os agentes nunca chamam um ao outro diretamente.
+---
 
-## Fluxo
+## Por que ele existe
 
-1. Quando ativado, `market_analyst` pesquisa até cinco concorrentes.
-2. `feature_lead` usa `high`, inspeciona o projeto, escolhe as skills necessárias e fecha o brief.
-3. O mesmo ID de sessão é retomado com `low` e recebe um contrato exato de execução derivado do brief.
-4. `code_reviewer` roda apenas quando o próprio brief marca risco técnico material.
-5. `tester` roda apenas quando a feature exige evidência de tela e Android está habilitado.
-6. `ux_auditor` roda quando há mudança comportamental, visual relevante ou marketing `full`.
-7. Correções voltam à mesma thread do `feature_lead`. Redesenho também acontece nela.
+Um agente de código sozinho tem dois problemas caros.
 
-Rota padrão para feature relevante:
+**Ele redescobre o projeto toda vez.** Sessões separadas para planejar, implementar e
+revisar pagam o pedágio de reler o app a cada etapa — dezenas de milhares de tokens
+antes de qualquer trabalho útil.
 
-`market_analyst? → feature_lead (planejar → implementar) → code_reviewer? → tester? → ux_auditor?`
+**E ele avalia o próprio trabalho.** Quando o mesmo modelo escreve e julga, ele defende
+o que acabou de escrever.
 
-O `?` indica etapa opcional. Mudança trivial pode executar somente no `feature_lead`. A troca de reasoning retoma o mesmo ID e histórico; não cria outro agente nem exige handoff manual.
+A arquitetura aqui responde aos dois: **uma sessão pesada e persistente** que planeja e
+implementa sem perder contexto, mais **especialistas separados e sem estado**,
+alimentados com evidência que o processo Node já calculou — diff, screenshot, árvore de
+UI. Separados para não ancorar; alimentados para não redescobrir.
 
-`feature_lead` usa `$feature-design-orchestrator` no planejamento e `$vercel-react-native-skills` na implementação.
+```mermaid
+flowchart LR
+    A[market_analyst<br/>3 faixas em paralelo] -.opcional.-> B
+    B[feature_lead<br/>planeja · reasoning alto] --> C[feature_lead<br/>implementa · mesma sessão]
+    C --> D{code_reviewer}
+    D --> E{tester<br/>screenshot + árvore de UI}
+    E --> F{ux_auditor}
+    F -->|achados| C
+    F -->|PASS| G[pronto]
 
-O limite padrão é de três ciclos.
+    style B fill:#f9d71c,stroke:#333,color:#000
+    style C fill:#f9d71c,stroke:#333,color:#000
+    style G fill:#5fcf95,stroke:#333,color:#000
+```
 
-## Requisitos
+O `feature_lead` troca de `reasoning` entre planejar e codar **retomando o mesmo ID de
+sessão** — não é outro agente, não há handoff escrito. Os especialistas só nascem quando
+o brief diz que são necessários.
 
-- Node.js 18 ou superior.
-- Codex autenticado localmente para `--provider codex`.
-- Claude Code autenticado ou `ANTHROPIC_API_KEY` configurada para `--provider claude`.
-- Acesso de escrita ao projeto React Native que será informado em `--project`.
+---
+
+## O que ele faz de diferente
+
+### Julga se vale a pena antes de gastar
+
+O brief responde `worthBuilding` — `yes`, `reduce` ou `no` — com o motivo. Um `no`
+encerra o loop antes de escrever qualquer código. Sai no mesmo turno do planejamento,
+então não custa uma chamada extra.
+
+### Minera avaliação real, não tabela de features
+
+Saber que o concorrente tem streak, widget e IA não muda decisão nenhuma — todos têm. O
+que muda decisão é o motivo, na palavra de quem usou:
+
+> "In Todoist, if you miss a deadline, the task turns red and sits there glaring at you."
+
+Três faixas em paralelo — **por que abandonam**, **por que ficam**, **como reagem a
+pagar** — com citação literal, fonte e data. A pesquisa é por app, não por feature: fica
+em cache e alimenta todas as tarefas.
+
+### Valida na tela de verdade
+
+Nada de "acho que funciona". O driver abre o app, espera a tela **renderizar de fato**
+(consulta a árvore de UI até sumir qualquer "Downloading…"), executa passos
+determinísticos e captura.
+
+| Evidência aceita | Evidência recusada |
+|---|---|
+| <img src="docs/imagens/evidencia-sem-prazo-expandido.png" width="260"> | <img src="docs/imagens/evidencia-tela-de-erro.png" width="260"> |
+| Seção expandida, lista rolada até o fim | Bundle ainda carregando — o tester bloqueia |
+
+Passos navegam **por texto**, não por coordenada:
+
+```json
+[
+  { "action": "wait", "ms": 2000 },
+  { "action": "checkpoint", "name": "abertura" },
+  { "action": "tapText", "value": "Sem prazo", "optional": true },
+  { "action": "scrollToEnd", "times": 4 },
+  { "action": "checkpoint", "name": "expandido" }
+]
+```
+
+### Respeita decisões que já são suas
+
+`regras.md` guarda invariantes de design do dono do app. Entram em todo planejamento como
+coisas que **não se reabre** — e se uma delas impedir a tarefa, o agente reporta em
+`blockers` em vez de contrariá-la.
+
+Isso nasceu de um caso real: o agente removeu um separador de seção com justificativa
+própria, e sem lugar para registrar a discordância, o run seguinte desfaria o conserto.
+
+---
+
+## Economia de token
+
+Cada handoff é medido, não estimado.
+
+| Onde | O que mudou |
+|---|---|
+| Ciclo 2 em diante | Só o feedback. O contrato já está na sessão retomada |
+| Revisores | Recebem o diff pronto em vez de reexplorar o repositório |
+| `tester` e `ux_auditor` | Só `uiNodes`, erros filtrados e caminho dos screenshots |
+| Especialistas | `settingSources: []` — não carregam CLAUDE.md do projeto |
+| Mercado | Cache por app, não por feature |
+
+Num run real medido, `market_analyst` respondeu por **94,3%** dos tokens e o
+`feature_lead` por **5,7%**. É por isso que o cache de mercado importa mais que qualquer
+ajuste de reasoning.
+
+---
 
 ## Instalação
 
-As dependências já estão instaladas nesta pasta. Para reinstalar:
+Precisa de Node 18+ e do CLI do provedor que você for usar (`claude` ou `codex`)
+autenticado.
 
 ```bash
+git clone <url> orquestrador-features
+cd orquestrador-features
 npm install
+npm link
 ```
 
-## Uso interativo
+Para o tester Android: `adb` no PATH e um emulador rodando com o app instalado.
 
-Depois da instalação global local, execute de qualquer pasta:
+---
+
+## Uso
+
+Modo interativo, que pergunta perfil, provedor e Android:
 
 ```bash
 orquestrar-features
 ```
 
-Ou, dentro desta pasta:
+Direto, com o caminho do app:
 
 ```bash
-npm start
+orquestrar-features --project ~/Documents/meu-app "deixar a tela inicial mais calma"
 ```
 
-O terminal pergunta provedor, pasta, feature, critérios, Android, marketing, ciclos e timeout. O package Android é detectado em Expo/React Native por `app.json`, `app.config.json`, Gradle ou Manifest. Se houver mais de um, o terminal oferece escolha. Configuração dinâmica em `app.config.js` pode exigir preenchimento manual.
-
-## Uso automatizado
-
-Com tarefa e critérios diretamente no comando:
+Só o diagnóstico, sem tocar em arquivo:
 
 ```bash
-npm start -- \
-  --project "/caminho/do/seu-app" \
-  --task "Adicionar recuperação de senha" \
-  --acceptance "Validar e-mail, tratar loading/sucesso/erro/offline e funcionar em iOS e Android"
+orquestrar-features --project ~/Documents/meu-app "..." --plan-only
 ```
 
-Executando com Claude Code:
+### Perfis
+
+| Perfil | Mercado | Ciclos | Gates |
+|---|---|---|---|
+| `fast` | desligado | 1 | só tela — para iterar com você olhando |
+| `unattended` | ligado | 3 | tela, design e UX sempre — para sair de casa |
+
+### Apps registrados
+
+Para não repetir flags, `apps/<nome-da-pasta-do-projeto>/app.json`:
+
+```json
+{
+  "provider": "claude",
+  "profile": "unattended",
+  "androidPackage": "com.exemplo.app",
+  "adbSteps": "adb/hoje.json",
+  "competitors": ["Concorrente A", "Concorrente B"]
+}
+```
+
+```
+apps/meu-app/
+  app.json                      configuração opcional
+  regras.md                     invariantes de design
+  tarefas/hoje.md               tarefa recorrente
+  tarefas/hoje.aceitacao.md     critérios, casados pelo nome
+  adb/hoje.json                 passos até a tela certa
+```
+
+O caminho do projeto é a chave — nada de nome inventado. Sem configuração, o app roda só
+com o que a detecção descobre.
+
+### Quando para
+
+Toda execução que não termina em `PASS` imprime como retomar:
+
+```
+Retomar    orquestrar-features --resume runs/2026-08-31T15-43-22.json
+```
+
+`--resume` reaproveita brief, pesquisa de mercado e as sessões dos agentes, pulando o
+planejamento inteiro. `--retries 0-5` retoma sozinho — mas só quando há chance de
+convergir: falta de evidência sim, contradição entre a tarefa e as regras não, porque
+repetir daria o mesmo resultado gastando de novo.
+
+### Dois terminais ao mesmo tempo
+
+Cada execução pega trava por projeto e por device. A segunda recusa dizendo quem está lá:
+
+```
+Erro: Já existe uma execução em projeto-/Users/voce/Documents/meu-app:
+pid 40457, desde 12:57:39 (0 min), tarefa: melhorar a tela de foco.
+```
+
+`--wait <minutos>` entra na fila em vez de recusar. Trava de processo morto é detectada
+pelo pid e reaproveitada.
+
+### Lote
 
 ```bash
-npm start -- \
-  --provider claude \
-  --project "/caminho/do/seu-app" \
-  --task "Adicionar recuperação de senha" \
-  --acceptance "Validar todos os estados e manter acessibilidade"
+orquestrar-features --project ~/Documents/meu-app --tasks tarefas.txt \
+  --profile unattended --concurrency 3
 ```
 
-Usando arquivos:
+Cada tarefa ganha uma worktree git própria e um branch `orq/<slug>`. O device é
+serializado — build, install e captura correm uma por vez, enquanto planejamento,
+implementação e revisão seguem em paralelo. No fim sai um HTML autocontido em `runs/`
+com screenshots embutidos.
+
+---
+
+## Flags
+
+`orquestrar-features --help` lista todas. As que mais importam:
+
+| Flag | Para quê |
+|---|---|
+| `--project <caminho>` | Pasta do app. É ela que identifica tudo o mais |
+| `--task-file <nome>` | Nome curto resolve a tarefa e os critérios |
+| `--plan-only` | Entrega o brief, não escreve código |
+| `--dry-run` | Mostra a configuração resolvida, gasta zero token |
+| `--profile <fast\|unattended>` | Mercado, reasoning, ciclos e gates de uma vez |
+| `--resume <estado.json>` | Retoma um run que parou |
+| `--retries <0-5>` | Retoma sozinho quando faz sentido |
+| `--wait <minutos>` | Fila em vez de recusa quando há colisão |
+| `--marketing-mode <none\|context\|full>` | Pesquisa de mercado |
+| `--provider <codex\|claude>` | Qual agente executa |
+
+---
+
+## Desenvolvimento
 
 ```bash
-npm start -- \
-  --project "/caminho/do/seu-app" \
-  --task-file examples/feature-request.md \
-  --max-cycles 3
+npm test      # sem rede e sem device
+npm run check # sintaxe de todos os módulos
 ```
 
-Com verificação Android:
+Os testes cobrem o loop com runtime falso, a classificação de retomada, as travas entre
+processos, o parser de passos ADB e o corte de tokens em cada handoff. Nenhum deles chama
+modelo.
 
-```bash
-npm start -- \
-  --project "/caminho/do/seu-app" \
-  --task-file examples/feature-request.md \
-  --android-package "com.exemplo.app" \
-  --android-activity ".MainActivity" \
-  --adb-steps examples/adb-steps.json
-```
+---
 
-Os passos ADB aceitos são `tap`, `text`, `keyevent`, `swipe`, `wait` e `checkpoint`. Comandos arbitrários são rejeitados.
+## Licença
 
-Opções adicionais:
-
-```text
---provider <nome>     codex ou claude. Padrão: codex.
---model <id>          Usa um modelo específico; sem essa opção, usa o padrão do provedor.
---aux-model <id>      Modelo opcional mais barato para tester e revisores.
---design-reasoning    Reasoning para UX/visual. Padrão: high.
---code-reasoning      Reasoning para implementação. Padrão: low.
---reasoning <nível>   Compatibilidade: aplica o mesmo nível às duas fases.
---max-cycles <1-10>   Limite rígido de ciclos. Padrão: 3.
---android-package     Ativa teste Android para o package informado.
---android-activity    Activity inicial. Padrão: .MainActivity.
---adb-device          Serial do device quando houver mais de um.
---adb-steps           Arquivo JSON com caminho determinístico e checkpoints.
---marketing-mode      none, context ou full. O modo full exige Android/screenshot.
---app-category        Categoria ou público-alvo do app.
---competitors         Nomes ou URLs separados por vírgula.
---agent-timeout       Timeout base dos agentes em minutos. Padrão: 10.
-```
-
-## Segurança operacional
-
-- No Codex, somente `feature_lead` usa sandbox `workspace-write`; especialistas usam `read-only`.
-- No Claude, planejamento e especialistas recebem apenas ferramentas de leitura. Implementação recebe `Read`, `Edit`, `Write`, `Glob`, `Grep` e `Bash`.
-- ADB roda fora do contexto dos dois modelos.
-- Rede e pesquisa web ficam desativadas no feature lead, tester e revisores.
-- Apenas `market_analyst` recebe pesquisa web, em sandbox somente leitura.
-- MCP externo fica desativado nas sessões internas: o Codex desativa `expo_mcp` e o Claude usa configuração MCP estrita vazia.
-- Nenhum agente pode iniciar outro agente.
-- Execuções usam streaming: heartbeat aparece a cada 15 segundos.
-- Agentes de análise usam timeout base de 10 minutos; implementação recebe no mínimo 30 minutos.
-- Se a implementação atingir o limite, `feature_lead` continua na mesma thread e preserva arquivos já alterados.
-- Design produz plano atômico, restrições e fora de escopo. Código recebe objetivo, decisões, direção visual, plano, checks e feedback em um contrato JSON compacto.
-- Código é proibido de redesenhar, pesquisar mercado, comparar alternativas ou executar refactors fora do contrato.
-- Handoffs para especialistas são compactados e não incluem catálogo completo de concorrentes.
-- `feature_lead` usa `high` no design e `low` no código; `tester` e `code_reviewer` também usam `low`; demais especialistas usam `medium`.
-- `--aux-model` permite usar modelo mais barato nos quatro especialistas sem reduzir o modelo do feature lead.
-- Sessões especialistas são lazy: não são criadas nem retomadas até a etapa realmente ser necessária.
-- Estado registra provedor, agente ativo, última atividade e IDs de sessão durante execução.
-- Estado e saída final registram tokens de entrada, cache, saída e reasoning por agente.
-- O estado de cada execução é salvo em `runs/`.
-- Screenshots e evidências Android ficam em `runs/*-artifacts/`.
-- Saída textual de ADB passa pelo RTK; bytes de imagem nunca entram no contexto.
-- A skill `tester` exige relatórios Caveman ultra e limita achados.
-- Em repositórios Git, o orquestrador detecta quando um novo ciclo não modifica o workspace.
-
-## Skills no Claude Code
-
-O runtime Claude procura somente as skills necessárias a cada agente. Ele reutiliza instalações existentes nestas pastas, nesta ordem:
-
-1. `<projeto>/.claude/skills`
-2. `~/.claude/skills`
-3. `~/.codex/skills`
-4. `~/.agents/skills`
-
-Skills já nativas do Claude são usadas diretamente. Skills encontradas apenas no Codex recebem links simbólicos dentro de `.claude-skill-bridge/.claude/skills`, pasta gerada e ignorada pelo Git. O runtime libera a ferramenta `Skill` somente quando encontrou skills para aquela etapa. Se uma skill não existir, as regras essenciais já presentes no prompt continuam valendo e a execução não bloqueia apenas por isso.
-
-## Verificação
-
-```bash
-npm run check
-npm test
-```
-
-## Códigos de saída
-
-- `0`: revisão aprovada.
-- `1`: erro de configuração ou execução.
-- `2`: agente bloqueado.
-- `3`: loop interrompido sem aprovação.
+MIT
