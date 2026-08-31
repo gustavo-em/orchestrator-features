@@ -64,15 +64,37 @@ export function centerOfBounds(bounds) {
   return [Math.round((left + right) / 2), Math.round((top + bottom) / 2)];
 }
 
+function boundsArea(bounds) {
+  const match = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(String(bounds ?? ""));
+  if (!match) return 0;
+  const [, left, top, right, bottom] = match.map(Number);
+  return Math.max(0, right - left) * Math.max(0, bottom - top);
+}
+
+/** Um mesmo texto costuma aparecer no rótulo e no alvo de toque. O alvo é o
+ *  que tem descrição de acessibilidade, é clicável e é maior; o rótulo é um
+ *  retângulo pequeno que pode estar em qualquer canto da tela. */
 export function findNodeByText(nodes, target) {
-  const needle = String(target).toLowerCase();
-  return (
-    (nodes ?? []).find((node) =>
-      [node.text, node["content-desc"]]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(needle)),
-    ) ?? null
-  );
+  const needle = String(target).trim().toLowerCase();
+  if (!needle) return null;
+
+  const scored = (nodes ?? [])
+    .map((node) => {
+      const text = String(node.text ?? "").trim().toLowerCase();
+      const description = String(node["content-desc"] ?? "").trim().toLowerCase();
+      const matches = [text, description].filter(Boolean);
+      if (!matches.some((value) => value.includes(needle))) return null;
+
+      let score = 0;
+      if (matches.some((value) => value === needle)) score += 4;
+      if (node.clickable === "true") score += 3;
+      if (description.includes(needle)) score += 1;
+      return { node, score, area: boundsArea(node.bounds) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || b.area - a.area);
+
+  return scored[0]?.node ?? null;
 }
 
 function validateInteger(value, label) {
@@ -368,8 +390,10 @@ export class AndroidTestDriver {
     }
     screenshots.push(await this.captureScreenshot(cycleDirectory));
 
+    // A árvore precisa ser lida DEPOIS dos passos: reaproveitar a leitura da
+    // checagem de renderização devolveria o estado anterior à navegação.
     const [uiNodes, errors] = await Promise.all([
-      rendered.ready ? Promise.resolve(rendered.nodes) : this.captureUiHierarchy(),
+      this.captureUiHierarchy(),
       this.runTextAdb(
         ["logcat", "-d", "-t", "250", "AndroidRuntime:E", "ReactNativeJS:W", "*:S"],
         4000,

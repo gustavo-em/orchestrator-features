@@ -1,0 +1,11 @@
+[
+  { "action": "wait", "ms": 1500 },
+  { "action": "tapText", "value": "Foco" },
+  { "action": "wait", "ms": 1200 },
+  { "action": "checkpoint", "name": "foco-selecao-de-tarefa" },
+  { "action": "tapText", "value": "25 min", "optional": true },
+  { "action": "wait", "ms": 1500 },
+  { "action": "checkpoint", "name": "foco-cronometro" },
+  { "action": "scrollToEnd", "times": 2 },
+  { "action": "checkpoint", "name": "foco-fim" }
+]

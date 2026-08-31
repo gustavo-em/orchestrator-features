@@ -24,6 +24,27 @@ test("busca por texto casa texto e content-desc, sem caso", () => {
   assert.equal(findNodeByText(nodes, "inexistente"), null);
 });
 
+test("entre rótulo e alvo de toque, escolhe o alvo", () => {
+  // Caso real: "FOCO" é um rótulo pequeno no topo e a aba fica embaixo.
+  const nodes = [
+    { text: "FOCO", clickable: "false", bounds: "[63,77][155,116]" },
+    { "content-desc": "Foco", clickable: "false", bounds: "[540,2222][810,2340]" },
+    { text: "Foco", clickable: "false", bounds: "[643,2295][707,2334]" },
+  ];
+
+  assert.equal(findNodeByText(nodes, "Foco").bounds, "[540,2222][810,2340]");
+  assert.deepEqual(centerOfBounds(findNodeByText(nodes, "Foco").bounds), [675, 2281]);
+});
+
+test("elemento clicável ganha de rótulo maior", () => {
+  const nodes = [
+    { text: "Salvar", clickable: "false", bounds: "[0,0][1080,200]" },
+    { text: "Salvar", clickable: "true", bounds: "[800,1900][1000,2000]" },
+  ];
+
+  assert.equal(findNodeByText(nodes, "Salvar").clickable, "true");
+});
+
 test("novos passos são aceitos e ação inventada é recusada", () => {
   const steps = validateAdbSteps([
     { action: "tapText", value: "Sem prazo", optional: true },
