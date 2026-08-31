@@ -1,3 +1,6 @@
+import { compactEvidence } from "./evidence.js";
+import { compactDesignBrief, compactMarketEvidence } from "./feature-lead.js";
+
 export const uxAuditor = {
   name: "ux_auditor",
   description:
@@ -11,7 +14,32 @@ export const uxAuditor = {
     designBrief,
     marketAnalysis,
     evidence,
+    diff,
+    sessionPrimed = false,
   }) {
+    if (sessionPrimed) {
+      return `
+Continue como ux_auditor na MESMA sessão. Tarefa, critérios, brief aprovado,
+contexto de mercado e regras já estão nesta conversa e continuam valendo. Não os
+repita e não reinspecione o que já foi lido.
+
+Audite apenas o que mudou e diga se os achados anteriores foram corrigidos.
+
+Ciclo atual: ${cycle}
+
+Relato estruturado do feature_lead:
+${JSON.stringify(implementationResult)}
+
+Diff real do workspace:
+${diff || "Indisponível."}
+
+Nova evidência Android compacta e screenshots anexados:
+${evidence ? JSON.stringify(compactEvidence(evidence)) : "Indisponível."}
+
+Devolva o resultado no formato solicitado.
+`.trim();
+    }
+    const market = compactMarketEvidence(marketAnalysis);
     return `
 Você é ux_auditor. Revise a experiência implementada sem editar arquivos.
 
@@ -20,7 +48,8 @@ Use design_director somente quando o brief exigir checagem visual, branding, hie
 
 Regras:
 - Não implemente correções e não inicie agentes.
-- Inspecione o código e as alterações reais; não aceite apenas o relato do implementador.
+- O diff abaixo é a alteração real do ciclo; use-o como fonte primária.
+- Abra arquivo do projeto somente quando o diff não bastar para julgar o achado.
 - Compare a implementação com a tarefa e os critérios de aceitação.
 - Quando requiresDesignCheck=true, compare screenshots com direção visual, motion, identidade e contexto de mercado.
 - Quando requiresUxAudit=true, verifique fluxo, clareza, acessibilidade, estados e convenções iOS/Android.
@@ -41,20 +70,19 @@ Critérios de aceitação:
 ${acceptanceCriteria}
 
 Brief aprovado:
-${JSON.stringify(designBrief)}
+${JSON.stringify(compactDesignBrief(designBrief))}
 
 Mercado, quando relevante:
-${marketAnalysis ? JSON.stringify(marketAnalysis) : "Indisponível."}
+${market ? JSON.stringify(market) : "Indisponível."}
 
 Relato estruturado do feature_lead:
-${JSON.stringify(implementationResult, null, 2)}
+${JSON.stringify(implementationResult)}
+
+Diff real do workspace:
+${diff || "Indisponível."}
 
 Evidência Android compacta e screenshots anexados:
-${evidence ? JSON.stringify({
-  uiNodes: evidence.uiNodes,
-  errors: evidence.errors,
-  screenshots: (evidence.screenshots ?? []).map(({ name, path }) => ({ name, path })),
-}) : "Indisponível."}
+${evidence ? JSON.stringify(compactEvidence(evidence)) : "Indisponível."}
 
 Audite o estado atual do projeto e devolva o resultado no formato solicitado.
 `.trim();

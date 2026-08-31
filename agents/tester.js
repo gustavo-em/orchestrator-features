@@ -1,9 +1,36 @@
+import { compactEvidence } from "./evidence.js";
+
 export const tester = {
   name: "tester",
   description:
     "Valida telas mobile com screenshots e evidência Android condensada, priorizando baixo consumo de tokens.",
 
-  buildPrompt({ task, acceptanceCriteria, cycle, implementationResult, evidence }) {
+  buildPrompt({
+    task,
+    acceptanceCriteria,
+    cycle,
+    implementationResult,
+    evidence,
+    sessionPrimed = false,
+  }) {
+    if (sessionPrimed) {
+      return `
+Continue como tester na MESMA sessão. Tarefa, critérios e regras já estão nesta
+conversa e continuam valendo. Não os repita e não recomece a análise.
+
+Valide o novo estado da tela e diga se os achados do ciclo anterior sumiram.
+
+Ciclo: ${cycle}
+
+Implementação do feature_lead:
+${JSON.stringify(implementationResult)}
+
+Nova evidência Android compacta:
+${evidence ? JSON.stringify(compactEvidence(evidence)) : "Indisponível."}
+
+Retorne somente o JSON solicitado.
+`.trim();
+    }
     return `
 Você é o agente tester. Valide a tela Android sem editar arquivos.
 
@@ -33,7 +60,7 @@ Implementação do feature_lead:
 ${JSON.stringify(implementationResult)}
 
 Evidência Android compacta:
-${JSON.stringify(evidence)}
+${evidence ? JSON.stringify(compactEvidence(evidence)) : "Indisponível."}
 
 Retorne somente o JSON solicitado.
 `.trim();
