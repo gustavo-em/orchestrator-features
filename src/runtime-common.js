@@ -33,3 +33,26 @@ export function safeProgress(onProgress, progress) {
     // Progresso nunca pode derrubar execução do agente.
   }
 }
+
+export async function runMarketLanes({ lanes, runLane }) {
+  const { mergeMarketLanes } = await import("../agents/market-analyst.js");
+  const results = await Promise.all(
+    lanes.map(async (lane) => {
+      try {
+        const result = await runLane(lane);
+        return { ...result, lane: result?.lane || lane.id };
+      } catch (error) {
+        return {
+          status: "BLOCKED",
+          lane: lane.id,
+          summary: error.message,
+          signals: [],
+          opportunities: [],
+          risks: [],
+          featureContext: [],
+        };
+      }
+    }),
+  );
+  return mergeMarketLanes(results);
+}

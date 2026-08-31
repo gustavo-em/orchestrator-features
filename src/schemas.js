@@ -38,6 +38,9 @@ export const featurePlanOutputSchema = {
       items: { type: "string", enum: ["mobile-design", "design_director"] },
     },
     routeSummary: { type: "string" },
+    worthBuilding: { type: "string", enum: ["yes", "reduce", "no"] },
+    worthReason: { type: "string" },
+    reducedScope: { type: "array", maxItems: 5, items: { type: "string" } },
     userGoal: { type: "string" },
     behaviorDecisions: {
       type: "array",
@@ -78,6 +81,8 @@ export const featurePlanOutputSchema = {
   required: [
     "status",
     "summary",
+    "worthBuilding",
+    "worthReason",
     "classification",
     "route",
     "routeSummary",
@@ -250,6 +255,52 @@ export const codeReviewerOutputSchema = {
     },
   },
   required: ["status", "summary", "findings", "checksPerformed"],
+  additionalProperties: false,
+};
+
+export const marketLaneOutputSchema = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["COMPLETE", "BLOCKED"] },
+    lane: { type: "string" },
+    summary: { type: "string" },
+    signals: {
+      type: "array",
+      maxItems: 8,
+      items: {
+        type: "object",
+        properties: {
+          quote: { type: "string" },
+          meaning: { type: "string" },
+          app: { type: "string" },
+          source: { type: "string" },
+          accessedAt: { type: "string" },
+          strength: { type: "string", enum: ["recorrente", "isolado"] },
+        },
+        required: [
+          "quote",
+          "meaning",
+          "app",
+          "source",
+          "accessedAt",
+          "strength",
+        ],
+        additionalProperties: false,
+      },
+    },
+    opportunities: { type: "array", maxItems: 5, items: { type: "string" } },
+    risks: { type: "array", maxItems: 5, items: { type: "string" } },
+    featureContext: { type: "array", maxItems: 5, items: { type: "string" } },
+  },
+  required: [
+    "status",
+    "lane",
+    "summary",
+    "signals",
+    "opportunities",
+    "risks",
+    "featureContext",
+  ],
   additionalProperties: false,
 };
 
