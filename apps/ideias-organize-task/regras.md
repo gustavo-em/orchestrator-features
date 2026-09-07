@@ -1,5 +1,23 @@
 Decisões de design já fechadas para o Ideias. Valem em toda tarefa.
 
+## Contexto do dono e arquitetura (decida sozinho por isto)
+
+- O dono é **desenvolvedor solo**, sem equipe e sem backend próprio. Nunca proponha
+  serviço customizado, servidor, ou infra que exija time.
+- Backend é **Firebase e só Firebase**: Auth para identidade, **Firestore para dados
+  compartilhados** (banco já provisionado no console pelo dono). Precisou de dado entre
+  usuários? A resposta é Firestore — não pergunte, não bloqueie por "falta backend".
+- Quando um passo só o dono pode executar no console (publicar regras de segurança,
+  habilitar provedor, criar índice): **implemente tudo mesmo assim**, versione a
+  configuração no repositório (ex.: `docs/firebase/firestore.rules`) e liste o passo
+  manual do dono no summary — nunca stub falso, nunca BLOCKED por isso.
+- Validação que exige duas contas simultâneas: verifique com um login + conta
+  descartável o que der; o resto vira observação "não verificável com um device",
+  nunca FAIL nem BLOCKED.
+- Custo importa: prefira o desenho mais simples que fecha o trabalho do usuário
+  (last-write-wins, sem tempo real, sem papéis complexos), como as specs em `docs/`
+  já definem.
+
 ## Separadores de seção
 
 Cabeçalho de seção usa rótulo curto em maiúsculas, contagem ao lado e um filete fino

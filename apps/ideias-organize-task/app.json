@@ -1,8 +1,10 @@
 {
   "provider": "claude",
+  "buildCommand": "cd android && ./gradlew installDebug",
   "androidPackage": "com.ideiasorganizetask",
   "androidActivity": ".MainActivity",
-  "adbSteps": "adb/hoje.json",
+  "adbDevice": "RXCTA0A54XA",
+  "adbSteps": "adb/login.json",
   "profile": "unattended",
   "appCategory": "Produtividade e organização de tarefas",
   "competitors": [

@@ -1,0 +1,9 @@
+[
+  { "action": "wait", "ms": 2000 },
+  { "action": "tapText", "value": "Você", "optional": true },
+  { "action": "wait", "ms": 800 },
+  { "action": "scrollToEnd", "times": 4 },
+  { "action": "tapText", "value": "Ver a apresentação de novo", "optional": true },
+  { "action": "wait", "ms": 1200 },
+  { "action": "checkpoint", "name": "onboarding-aberto" }
+]
