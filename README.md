@@ -1,13 +1,32 @@
-# Orquestrador de Features
+<div align="center">
 
-Loop multiagente que planeja, implementa e **valida no device** uma feature de app
-React Native — sem alguém olhando.
+### Orquestrador de Features
 
-Você descreve a mudança. Ele decide se vale a pena, fecha a direção de UX, escreve o
-código, abre o app num emulador Android, tira screenshot, lê a árvore de UI e só então
-diz se passou. Se não passou, volta para o mesmo dev com os achados e tenta de novo.
+**A multi-agent loop that plans a React Native feature, writes it, opens the app on a real
+Android device, and only then says whether it passed.**
 
-Roda sobre **Claude Code** ou **Codex**, à sua escolha.
+Persistent-session agents · structured output · on-device evidence · Claude Code or Codex
+
+[How it works](#how-it-works) · [Technical decisions](#technical-decisions) · [Flags](#flags) · [Task files](#registering-an-app)
+
+</div>
+
+---
+
+You describe the change in one sentence. It decides whether the change is worth making,
+closes the UX direction, writes the code, launches the app, takes a screenshot, reads the
+UI tree, and reports back. If it did not pass, the findings go to the same developer
+session — the one that still has the whole plan in context — and it tries again.
+
+```bash
+orquestrar-features --project ~/Documents/my-app "make the home screen calmer"
+```
+
+That is the whole interface. Everything below is what happens after you press enter.
+
+> The CLI, the agent prompts and the task files are written in Brazilian Portuguese —
+> that is the language this tool thinks in, and the transcript below is real output.
+> The code, the commits and this document are in English.
 
 ```
 -- configuracao ------------------------------------------------
@@ -42,74 +61,91 @@ ux       [high] Lista vazia genérica -> Separar dos dois estados
 
 ---
 
-## Por que ele existe
+## Why it exists
 
-Um agente de código sozinho tem dois problemas caros.
+A single coding agent has two expensive problems.
 
-**Ele redescobre o projeto toda vez.** Sessões separadas para planejar, implementar e
-revisar pagam o pedágio de reler o app a cada etapa — dezenas de milhares de tokens
-antes de qualquer trabalho útil.
+**It rediscovers the project every time.** Separate sessions for planning, implementing
+and reviewing each pay the toll of re-reading the app — tens of thousands of tokens
+before any useful work starts.
 
-**E ele avalia o próprio trabalho.** Quando o mesmo modelo escreve e julga, ele defende
-o que acabou de escrever.
+**And it grades its own homework.** When the same model writes the code and judges it,
+it defends what it just wrote.
 
-A arquitetura aqui responde aos dois: **uma sessão pesada e persistente** que planeja e
-implementa sem perder contexto, mais **especialistas separados e sem estado**,
-alimentados com evidência que o processo Node já calculou — diff, screenshot, árvore de
-UI. Separados para não ancorar; alimentados para não redescobrir.
+The architecture answers both: **one heavy, persistent session** that plans and implements
+without losing context, plus **separate, stateless specialists** fed with evidence the
+Node process already computed — the diff, the screenshots, the UI tree. Separate so they
+do not anchor on the author's reasoning; fed so they do not pay to rediscover the repo.
+
+---
+
+## How it works
 
 ```mermaid
 flowchart LR
-    A[market_analyst<br/>3 faixas em paralelo] -.opcional.-> B
-    B[feature_lead<br/>planeja · reasoning alto] --> C[feature_lead<br/>implementa · mesma sessão]
+    A[market_analyst<br/>3 lanes in parallel] -.optional.-> B
+    B[feature_lead<br/>plans · high reasoning] --> C[feature_lead<br/>implements · same session]
     C --> D{code_reviewer}
-    D --> E{tester<br/>screenshot + árvore de UI}
+    D --> E{tester<br/>screenshot + UI tree}
     E --> F{ux_auditor}
-    F -->|achados| C
-    F -->|PASS| G[pronto]
+    F -->|findings| C
+    F -->|PASS| G[done]
 
     style B fill:#f9d71c,stroke:#333,color:#000
     style C fill:#f9d71c,stroke:#333,color:#000
     style G fill:#5fcf95,stroke:#333,color:#000
 ```
 
-O `feature_lead` troca de `reasoning` entre planejar e codar **retomando o mesmo ID de
-sessão** — não é outro agente, não há handoff escrito. Os especialistas só nascem quando
-o brief diz que são necessários.
+`feature_lead` switches `reasoning` between planning and coding by **resuming the same
+session id**. It is not a second agent and there is no written handoff: the design
+decisions are still in the conversation when the code gets written. The specialists are
+only created when the brief says they are needed.
+
+Every agent answers with **structured output** against a JSON schema
+([`src/schemas.js`](src/schemas.js)), so the loop branches on fields — `status`,
+`worthBuilding`, `findings[].priority` — instead of parsing prose.
+
+| Agent | Session | What it owns |
+|---|---|---|
+| `market_analyst` | stateless, 3 parallel lanes | Real user reviews: why people leave, why they stay, how they react to paying |
+| `feature_lead` | **persistent** | The product call, the UX direction, the code, and every correction cycle |
+| `code_reviewer` | stateless | The diff — correctness, structure, risk |
+| `tester` | stateless | Screenshots and the UI tree from the device |
+| `ux_auditor` | stateless | Flow, states, accessibility, visual direction |
 
 ---
 
-## O que ele faz de diferente
+## What it does differently
 
-### Julga se vale a pena antes de gastar
+### It decides whether the work is worth doing
 
-O brief responde `worthBuilding` — `yes`, `reduce` ou `no` — com o motivo. Um `no`
-encerra o loop antes de escrever qualquer código. Sai no mesmo turno do planejamento,
-então não custa uma chamada extra.
+The brief answers `worthBuilding` — `yes`, `reduce` or `no` — with the reason. A `no`
+ends the run before a single line of code is written. It comes back in the same turn as
+the plan, so the decision costs no extra call.
 
-### Minera avaliação real, não tabela de features
+### It mines real reviews, not feature tables
 
-Saber que o concorrente tem streak, widget e IA não muda decisão nenhuma — todos têm. O
-que muda decisão é o motivo, na palavra de quem usou:
+Knowing that a competitor has streaks, a widget and AI changes no decision — they all do.
+What changes a decision is the reason, in the words of someone who used the thing:
 
 > "In Todoist, if you miss a deadline, the task turns red and sits there glaring at you."
 
-Três faixas em paralelo — **por que abandonam**, **por que ficam**, **como reagem a
-pagar** — com citação literal, fonte e data. A pesquisa é por app, não por feature: fica
-em cache e alimenta todas as tarefas.
+Three lanes run in parallel — **why they abandon**, **why they stay**, **how they react to
+paying** — each signal carrying a literal quote, a source and a date. The research is
+per app, not per feature, so it is cached and reused by every task.
 
-### Valida na tela de verdade
+### It validates on the actual screen
 
-Nada de "acho que funciona". O driver abre o app, espera a tela **renderizar de fato**
-(consulta a árvore de UI até sumir qualquer "Downloading…"), executa passos
-determinísticos e captura.
+No "this should work". The driver launches the app, waits for the screen to **actually
+render** (it polls the UI tree until any "Downloading…" is gone), runs deterministic
+steps, and captures.
 
-| Evidência aceita | Evidência recusada |
+| Evidence accepted | Evidence rejected |
 |---|---|
 | <img src="docs/imagens/evidencia-sem-prazo-expandido.png" width="260"> | <img src="docs/imagens/evidencia-tela-de-erro.png" width="260"> |
-| Seção expandida, lista rolada até o fim | Bundle ainda carregando — o tester bloqueia |
+| Section expanded, list scrolled to the end | Bundle still loading — the tester blocks |
 
-Passos navegam **por texto**, não por coordenada:
+Steps navigate **by text**, never by coordinate, so they survive a layout change:
 
 ```json
 [
@@ -121,39 +157,65 @@ Passos navegam **por texto**, não por coordenada:
 ]
 ```
 
-### Respeita decisões que já são suas
+### It respects decisions that are already yours
 
-`regras.md` guarda invariantes de design do dono do app. Entram em todo planejamento como
-coisas que **não se reabre** — e se uma delas impedir a tarefa, o agente reporta em
-`blockers` em vez de contrariá-la.
+`regras.md` holds the app owner's design invariants. They enter every planning turn as
+things that **do not get reopened** — and if one of them blocks the task, the agent
+reports it in `blockers` instead of overruling it.
 
-Isso nasceu de um caso real: o agente removeu um separador de seção com justificativa
-própria, e sem lugar para registrar a discordância, o run seguinte desfaria o conserto.
+That came from a real failure: the agent removed a section separator on its own
+reasoning, and with nowhere to record the disagreement, the next run undid the fix.
 
 ---
 
-## Economia de token
+## Two providers
 
-Cada handoff é medido, não estimado.
+The loop is provider-agnostic. `src/runtime-factory.js` picks a runtime, and both
+implement the same surface: run an agent, resume a session id, set a reasoning effort,
+return structured output.
 
-| Onde | O que mudou |
+| | Claude Code | Codex |
+|---|---|---|
+| SDK | `@anthropic-ai/claude-agent-sdk` | `@openai/codex-sdk` |
+| Runtime | [`src/claude-agent.js`](src/claude-agent.js) | [`src/codex-agent.js`](src/codex-agent.js) |
+| Continuity | session id | thread id |
+| Reasoning | `low … max` | `minimal … persistent` |
+| Auth | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `~/.claude/.credentials.json`, or the macOS Keychain | `OPENAI_API_KEY` or `~/.codex/auth.json` |
+
+```bash
+orquestrar-features --project ~/Documents/my-app --provider claude "..."
+orquestrar-features --project ~/Documents/my-app --provider codex  "..."
+```
+
+Adding a third provider means one more file implementing that surface and one more entry
+in the factory — nothing in the loop, the agents or the schemas knows which one is running.
+
+---
+
+## Token economy
+
+Every handoff is measured, not estimated.
+
+| Where | What changed |
 |---|---|
-| Ciclo 2 em diante | Só o feedback. O contrato já está na sessão retomada |
-| Revisores | Recebem o diff pronto em vez de reexplorar o repositório |
-| `tester` e `ux_auditor` | Só `uiNodes`, erros filtrados e caminho dos screenshots |
-| Especialistas | `settingSources: []` — não carregam CLAUDE.md do projeto |
-| Mercado | Cache por app, não por feature |
+| Cycle 2 onwards | Only the findings travel. The contract is already in the resumed session |
+| Reviewers | Receive the computed diff instead of re-exploring the repository |
+| `tester` and `ux_auditor` | Only `uiNodes`, filtered errors and the screenshot paths |
+| Specialists | `settingSources: []` — they do not load the project's CLAUDE.md |
+| Market research | Cached per app, not per feature |
 
-Num run real medido, `market_analyst` respondeu por **94,3%** dos tokens e o
-`feature_lead` por **5,7%**. É por isso que o cache de mercado importa mais que qualquer
-ajuste de reasoning.
+In one measured run, `market_analyst` accounted for **94.3%** of the tokens and
+`feature_lead` for **5.7%**. That is why the market cache matters more than any reasoning
+knob — and why `--marketing-mode none` is the right default for anything that is not a
+product decision.
+
+`--token-budget 800k` stops the run when the ceiling is reached, resumably.
 
 ---
 
-## Instalação
+## Install
 
-Precisa de Node 18+ e do CLI do provedor que você for usar (`claude` ou `codex`)
-autenticado.
+Node 18+ and the CLI of the provider you plan to use (`claude` or `codex`), authenticated.
 
 ```bash
 git clone <url> orquestrador-features
@@ -162,141 +224,218 @@ npm install
 npm link
 ```
 
-Para o tester Android: `adb` no PATH e um emulador rodando com o app instalado.
+For the Android tester: `adb` on the PATH and a device or emulator running with the app
+installed.
 
 ---
 
-## Uso
+## Usage
 
-Modo interativo, que pergunta perfil, provedor e Android:
+Interactive, asking for profile, provider and Android package:
 
 ```bash
 orquestrar-features
 ```
 
-Direto, com o caminho do app:
+Straight to the point:
 
 ```bash
-orquestrar-features --project ~/Documents/meu-app "deixar a tela inicial mais calma"
+orquestrar-features --project ~/Documents/my-app "make the home screen calmer"
 ```
 
-Só o diagnóstico, sem tocar em arquivo:
+Diagnosis only, touching no file:
 
 ```bash
-orquestrar-features --project ~/Documents/meu-app "..." --plan-only
+orquestrar-features --project ~/Documents/my-app "..." --plan-only
 ```
 
-### Perfis
+### Profiles
 
-| Perfil | Mercado | Ciclos | Gates |
+| Profile | Market research | Cycles | Gates |
 |---|---|---|---|
-| `fast` | desligado | 1 | só tela — para iterar com você olhando |
-| `unattended` | ligado | 3 | tela, design e UX sempre — para sair de casa |
+| `fast` | off | 1 | screen only — iterate while you watch |
+| `unattended` | on | 3 | screen, design and UX always — leave the house |
+| `deep` | on | 5 | all four, high reasoning on design — auth, persistence, a new flow |
 
-### Apps registrados
+### Registering an app
 
-Para não repetir flags, `apps/<nome-da-pasta-do-projeto>/app.json`:
+So you do not repeat flags, `apps/<project-folder-name>/app.json`:
 
 ```json
 {
   "provider": "claude",
   "profile": "unattended",
-  "androidPackage": "com.exemplo.app",
+  "androidPackage": "com.example.app",
   "adbSteps": "adb/hoje.json",
-  "competitors": ["Concorrente A", "Concorrente B"]
+  "competitors": ["Competitor A", "Competitor B"]
 }
 ```
 
 ```
-apps/meu-app/
-  app.json                      configuração opcional
-  regras.md                     invariantes de design
-  tarefas/hoje.md               tarefa recorrente
-  tarefas/hoje.aceitacao.md     critérios, casados pelo nome
-  adb/hoje.json                 passos até a tela certa
+apps/my-app/
+  app.json                      optional configuration
+  regras.md                     design invariants that are never reopened
+  tarefas/hoje.md               a recurring task
+  tarefas/hoje.aceitacao.md     its acceptance criteria, matched by name
+  adb/hoje.json                 the steps that reach the right screen
 ```
 
-O caminho do projeto é a chave — nada de nome inventado. Sem configuração, o app roda só
-com o que a detecção descobre.
+The project path is the key — no invented names. With no configuration at all, the run
+works from whatever detection finds.
 
-### Quando para
+### Tasks that never touch the screen
 
-Toda execução que não termina em `PASS` imprime como retomar:
+A release build, a refactor or a README has nothing to look at, so `--no-screen-test`
+drops the device driver and closes the screen, design and UX gates for that run — even
+when the app config pins an Android package.
+
+```bash
+orquestrar-features --project ~/Documents/my-app --queue release-android-aab \
+  --no-screen-test --marketing-mode none --code-reasoning high
+```
+
+### When it stops
+
+Any run that does not end in `PASS` prints how to resume:
 
 ```
 Retomar    orquestrar-features --resume runs/2026-08-31T15-43-22.json
 ```
 
-`--resume` reaproveita brief, pesquisa de mercado e as sessões dos agentes, pulando o
-planejamento inteiro. `--retries 0-5` retoma sozinho — mas só quando há chance de
-convergir: falta de evidência sim, contradição entre a tarefa e as regras não, porque
-repetir daria o mesmo resultado gastando de novo.
+`--resume` reuses the brief, the market research and the agent sessions, skipping planning
+entirely. `--retries 0-5` resumes on its own — but only when there is a chance of
+converging: missing evidence yes, a contradiction between the task and the rules no,
+because repeating would spend again for the same answer. A provider usage limit is a
+third case: it renews by itself, so the run waits instead of burning a retry.
 
-### Dois terminais ao mesmo tempo
+### Two terminals at once
 
-Cada execução pega trava por projeto e por device. A segunda recusa dizendo quem está lá:
+Every run takes a lock per project and per device. The second one refuses, naming who is
+there:
 
 ```
 Erro: Já existe uma execução em projeto-/Users/voce/Documents/meu-app:
 pid 40457, desde 12:57:39 (0 min), tarefa: melhorar a tela de foco.
 ```
 
-`--wait <minutos>` entra na fila em vez de recusar. Trava de processo morto é detectada
-pelo pid e reaproveitada.
+`--wait <minutes>` queues instead of refusing. A lock held by a dead process is detected
+by pid and reclaimed.
 
-A mesma espera vale para os serviços: antes de começar, o run confere se o device
-aparece em `adb devices` e se o Metro responde na porta. Sem `--wait`, falha na hora
-dizendo o que falta; com `--wait`, espera o outro terminal liberar. Porta ocupada por um
-processo que não responde como Metro é distinguida de Metro ausente, porque a correção é
-outra.
+The same wait covers the services: before starting, the run checks that the device shows
+up in `adb devices` and that Metro answers on the port. A port held by something that is
+not Metro is reported differently from Metro being absent, because the fix is different.
 
-### Lote
+### Batch
 
 ```bash
-orquestrar-features --project ~/Documents/meu-app --tasks tarefas.txt \
+orquestrar-features --project ~/Documents/my-app --tasks tasks.txt \
   --profile unattended --concurrency 3
 ```
 
-Cada tarefa ganha uma worktree git própria e um branch `orq/<slug>`. O device é
-serializado — build, install e captura correm uma por vez, enquanto planejamento,
-implementação e revisão seguem em paralelo. No fim sai um HTML autocontido em `runs/`
-com screenshots embutidos.
+Each task gets its own git worktree and an `orq/<slug>` branch. The device is serialized —
+build, install and capture run one at a time — while planning, implementation and review
+run in parallel. The result is a self-contained HTML report in `runs/`, screenshots
+embedded.
+
+### Sequential queue
+
+```bash
+orquestrar-features --project ~/Documents/my-app --queue login,groups \
+  --profile deep --retries 2 --wait 60
+```
+
+For dependent features: the tasks run in order, **in the same working tree**, and each one
+that ends `PASS` is committed before the next begins, so the second builds on the first's
+real code. Names resolve like `--task-file`. The project must start clean; branch first if
+you want to review everything in the morning. If one task stops, the queue stops, printing
+its `--resume` and the `--queue` for what is left.
 
 ---
 
 ## Flags
 
-`orquestrar-features --help` lista todas. As que mais importam:
+`orquestrar-features --help` lists them all. The ones that matter most:
 
-| Flag | Para quê |
+| Flag | What for |
 |---|---|
-| `--project <caminho>` | Pasta do app. É ela que identifica tudo o mais |
-| `--task-file <nome>` | Nome curto resolve a tarefa e os critérios |
-| `--plan-only` | Entrega o brief, não escreve código |
-| `--dry-run` | Mostra a configuração resolvida, gasta zero token |
-| `--profile <fast\|unattended>` | Mercado, reasoning, ciclos e gates de uma vez |
-| `--resume <estado.json>` | Retoma um run que parou |
-| `--retries <0-5>` | Retoma sozinho quando faz sentido |
-| `--wait <minutos>` | Fila em vez de recusa: trava, Metro e device |
-| `--metro-port <porta>` | Porta conferida antes de começar. Padrão 8081 |
-| `--marketing-mode <none\|context\|full>` | Pesquisa de mercado |
-| `--provider <codex\|claude>` | Qual agente executa |
+| `--project <path>` | The app folder. It identifies everything else |
+| `--task-file <name>` | A short name resolves the task and its acceptance criteria |
+| `--plan-only` | Delivers the brief, writes no code |
+| `--dry-run` | Prints the resolved configuration, spends zero tokens |
+| `--profile <fast\|unattended\|deep>` | Market research, reasoning, cycles and gates at once |
+| `--no-screen-test` | No device: for release, build, docs and refactor tasks |
+| `--queue <names>` | Sequential queue with a commit between dependent tasks |
+| `--tasks <file>` | Parallel batch, one worktree each |
+| `--resume <state.json>` | Resumes a run that stopped |
+| `--retries <0-5>` | Resumes on its own when that can converge |
+| `--wait <minutes>` | Queue instead of refusal: locks, Metro and device |
+| `--token-budget <n>` | Ceiling per run, `800k` / `1.5m`; stops resumably |
+| `--escalation-model <id>` | A stuck agent gets one retry on a stronger model |
+| `--marketing-mode <none\|context\|full>` | Market research depth |
+| `--provider <codex\|claude>` | Which agent runs it |
 
 ---
 
-## Desenvolvimento
+## Technical decisions
+
+**One persistent session for planning and coding.** The alternative — a planner agent
+writing a document for an implementer agent — loses everything the planner learned but did
+not write down, and pays to rediscover the repository. Resuming the same session with a
+different reasoning effort keeps the design conversation in context while the code gets
+written. The cost is that the author's bias is also still in context, which is exactly why
+the reviewers are separate.
+
+**Stateless reviewers, fed with computed evidence.** `code_reviewer`, `tester` and
+`ux_auditor` never see the planning conversation. They receive the diff, the screenshots
+and the UI tree that the Node process already computed. Separate so they judge the result
+instead of the intention; fed so they do not spend tokens re-reading the repo.
+
+**Structured output instead of prose parsing.** Every agent answers against a JSON schema.
+The loop branches on `status` and `findings[].priority`; nothing depends on a model
+phrasing a verdict the same way twice.
+
+**Evidence before verdict.** The tester only judges after the screen is proven rendered.
+A screenshot of a loading bundle is not evidence, and treating it as one produces a
+confident, wrong PASS.
+
+**Infrastructure failure is not feature failure.** A missing device, a dead Metro or an
+adb timeout ends the run as `STOPPED` and resumable, never as `BLOCKED`. Only the loop's
+own reasoning can block a feature.
+
+**Retrying only when retrying can help.** `src/preflight.js` classifies why a run stopped.
+Missing evidence is worth another capture. A contradiction between the task and
+`regras.md` needs a human. A usage limit renews by itself, so it waits rather than
+consuming a retry.
+
+**The owner's rules outrank the agent's taste.** `regras.md` is loaded into every planning
+turn as invariants. A rule that orders a fix can never be turned into a constraint that
+preserves the thing it ordered fixed — a real regression the prompt now defends against
+explicitly.
+
+**Locks by resource, not by run.** One lock per project and one per device, held in
+`runs/locks/` with the pid. Two terminals can work on two apps; they cannot fight over one
+phone.
+
+**Worktrees for parallelism, one working tree for dependencies.** A batch isolates each
+task in its own git worktree so three features can be written at once. A queue does the
+opposite on purpose: same tree, committed between tasks, because the second feature needs
+the first one's real code.
+
+---
+
+## Development
 
 ```bash
-npm test      # sem rede e sem device
-npm run check # sintaxe de todos os módulos
+npm test      # no network, no device
+npm run check # syntax across every module
 ```
 
-Os testes cobrem o loop com runtime falso, a classificação de retomada, as travas entre
-processos, o parser de passos ADB e o corte de tokens em cada handoff. Nenhum deles chama
-modelo.
+The tests cover the loop against a fake runtime, the resume classification, the
+cross-process locks, the ADB step parser and the token trimming at each handoff. None of
+them calls a model.
 
 ---
 
-## Licença
+## License
 
 MIT
