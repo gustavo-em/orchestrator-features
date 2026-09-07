@@ -9,9 +9,9 @@ import {
   summarizeWorktree,
 } from "./worktree.js";
 
-function commitMessage(task) {
+export function commitMessage(task) {
   const subject = task.replace(/\s+/g, " ").trim().slice(0, 68);
-  return `${subject}\n\nImplementado por orquestrador-features em execução não supervisionada.`;
+  return `${subject}\n\nImplemented by orquestrador-features in an unattended run.`;
 }
 
 async function runPool(items, concurrency, worker) {
@@ -47,6 +47,8 @@ export async function runBatch({
   createRuntime,
   createStateStore,
   createScreenDriver = () => null,
+  createEscalationRuntime = null,
+  tokenBudget = 0,
   onEvent = () => {},
 }) {
   const deviceLock = createMutex();
@@ -104,6 +106,10 @@ export async function runBatch({
         marketAnalysis,
         appRules,
         gateOverrides,
+        tokenBudget,
+        createEscalationRuntime: createEscalationRuntime
+          ? () => createEscalationRuntime({ projectPath: worktree.path })
+          : null,
         onEvent: (event) => onEvent({ ...event, slug }),
       });
 

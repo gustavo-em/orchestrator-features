@@ -1,0 +1,10 @@
+{
+  "provider": "claude",
+  "buildCommand": "cd android && ./gradlew installDebug",
+  "androidPackage": "com.gustavoem.saylens",
+  "androidActivity": ".MainActivity",
+  "adbDevice": "52000796031fc56d",
+  "marketingMode": "none",
+  "appCategory": "Aprendizado de inglês pela câmera do celular",
+  "competitors": ["Duolingo", "Google Lens", "Memrise", "Drops", "Busuu"]
+}

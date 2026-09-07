@@ -2,11 +2,12 @@
 
 import { existsSync, realpathSync } from "node:fs";
 import { access, readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { AndroidTestDriver } from "./android-test-driver.js";
-import { parseTaskList, runBatch } from "./batch.js";
+import { commitMessage, parseTaskList, runBatch } from "./batch.js";
 import { runFeatureLoop } from "./orchestrator.js";
 import { detectReactNativeProject } from "./project-detector.js";
 import {
@@ -29,7 +30,12 @@ import {
   explainAgentError,
 } from "./preflight.js";
 import { createPrinter, hintLine, rule, statusStyle, style } from "./ui.js";
-import { assertCleanRepository, resolveBaseRef } from "./worktree.js";
+import {
+  assertCleanRepository,
+  commitWorktree,
+  repositoryDirty,
+  resolveBaseRef,
+} from "./worktree.js";
 
 const defaultWorktreesDirectory = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -71,7 +77,14 @@ Opções:
   --android-activity <nome>    Activity inicial. Padrão: .MainActivity.
   --adb-device <serial>        Device específico quando houver mais de um.
   --adb-steps <arquivo.json>   Passos ADB determinísticos antes da captura.
+  --no-screen-test             Roda sem device: ignora o pacote Android da config e desliga
+                               os gates de tela, design e UX. Para tarefas que não passam pela
+                               tela (release, build, documentação, refactor).
   --tasks <arquivo>            Lote a partir de arquivo .json ou de texto com uma tarefa por linha.
+  --queue <nomes>              Fila sequencial no mesmo working tree: nomes separados por vírgula,
+                               resolvidos como --task-file (ex.: --queue login,grupos). Cada tarefa
+                               que termina PASS é commitada e a próxima começa em cima do resultado;
+                               se uma parar, a fila para e imprime como retomar.
   --task <texto> (repetido)    Repita --task para montar um lote sem arquivo.
   --resume <runs/arquivo.json> Retoma um run que parou: reaproveita brief, pesquisa de mercado
                                e as sessões dos agentes, e pula direto para a implementação.
@@ -92,13 +105,23 @@ Opções:
                                 --bundle-output android/app/src/main/assets/index.android.bundle \
                                 --assets-dest android/app/src/main/res && \
                                 cd android && ./gradlew installDebug"
-  --profile <nome>             fast ou unattended. Ajusta mercado, reasoning, ciclos e gates.
+  --profile <nome>             fast, unattended ou deep. Ajusta mercado, reasoning, ciclos e gates.
   --marketing-mode <modo>      none, context ou full. Padrão com flags: none.
   --app-category <texto>       Categoria ou público para análise de mercado.
   --competitors <lista>        Nomes/URLs separados por vírgula.
   --agent-timeout <1-60>       Timeout base; implementação recebe no mínimo 30 min. Padrão: 10.
   --model <id>                 Modelo do provedor. Omita para usar o padrão configurado.
   --aux-model <id>             Modelo opcional para tester e revisores.
+  --escalation-model <id>      Fallback: agente que trava (BLOCKED) ganha 1 tentativa neste
+                               modelo mais forte antes de encerrar. Padrão: opus no Claude;
+                               "none" desliga.
+  --escalation-reasoning <n>   Reasoning do fallback. Padrão: max (Claude) / xhigh (Codex).
+  --token-budget <n>           Teto de tokens do run (entrada não cacheada + saída). Aceita
+                               sufixo k/m (ex.: 800k, 1.5m). Estourou, para retomável.
+                               Padrão: 0 (desligado).
+  --device-state <estado>      Estado do device no início do run: "limpo" zera os dados do
+                               app (pm clear) uma vez; "manter" herda o que ficou (padrão).
+                               Na fila, por tarefa: --queue login:limpo,grupos.
   --design-reasoning <nível>   Reasoning para UX/visual. Padrão: high.
   --code-reasoning <nível>     Reasoning para implementação. Padrão: low.
   --reasoning <nível>          Compatibilidade: aplica o mesmo nível às duas fases.
@@ -166,6 +189,21 @@ function parseConcurrency(value) {
   return concurrency;
 }
 
+export function parseTokenBudget(value) {
+  if (value === undefined || value === null || value === "") return 0;
+  const match = /^(\d+(?:\.\d+)?)([km]?)$/i.exec(String(value).trim());
+  const multiplier = { "": 1, k: 1_000, m: 1_000_000 }[
+    match?.[2]?.toLowerCase() ?? ""
+  ];
+  const budget = match ? Math.round(Number(match[1]) * multiplier) : NaN;
+  if (!Number.isInteger(budget) || budget < 0) {
+    throw new Error(
+      '--token-budget deve ser um número de tokens, com sufixo opcional k ou m (ex.: 800k, 1.5m). 0 desliga.',
+    );
+  }
+  return budget;
+}
+
 function parseAgentTimeout(value) {
   const minutes = Number.parseInt(value ?? "10", 10);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 60) {
@@ -188,10 +226,12 @@ const KNOWN_FLAGS = new Set([
   "provider",
   "max-cycles",
   "android-package",
+  "no-screen-test",
   "android-activity",
   "adb-device",
   "adb-steps",
   "tasks",
+  "queue",
   "dry-run",
   "plan-only",
   "market-cache-days",
@@ -206,6 +246,10 @@ const KNOWN_FLAGS = new Set([
   "agent-timeout",
   "model",
   "aux-model",
+  "escalation-model",
+  "escalation-reasoning",
+  "token-budget",
+  "device-state",
   "design-reasoning",
   "code-reasoning",
   "reasoning",
@@ -213,6 +257,7 @@ const KNOWN_FLAGS = new Set([
 ]);
 
 const FLAG_ALIASES = {
+  fila: "queue",
   texto: "task",
   tarefa: "task",
   "arquivo-tarefa": "task-file",
@@ -271,7 +316,12 @@ export function parseArguments(argv) {
       parsed.help = true;
       continue;
     }
-    if (key === "dry-run" || key === "plan-only") {
+    if (
+      key === "dry-run" ||
+      key === "plan-only" ||
+      key === "no-screen-test" ||
+      key === "skip-service-check"
+    ) {
       parsed[key] = true;
       continue;
     }
@@ -296,6 +346,64 @@ export function parseArguments(argv) {
   }
 
   return parsed;
+}
+
+/** Run de cron/launchd não carrega ~/.zshrc: sem PATH do nvm, sem ANDROID_HOME,
+ *  sem JAVA_HOME. Endurece o ambiente a partir de fatos do próprio processo e
+ *  de caminhos padrão, sem sobrescrever o que já estiver definido. */
+export function hardenEnvironment(
+  appEnv = {},
+  env = process.env,
+  home = os.homedir(),
+) {
+  for (const [key, value] of Object.entries(appEnv)) {
+    if (typeof value === "string" && !env[key]) env[key] = value;
+  }
+  if (!env.ANDROID_HOME) {
+    const sdk = path.join(home, "Library", "Android", "sdk");
+    if (existsSync(sdk)) env.ANDROID_HOME = sdk;
+  }
+  if (!env.JAVA_HOME) {
+    const jbr = "/Applications/Android Studio.app/Contents/jbr/Contents/Home";
+    if (existsSync(jbr)) env.JAVA_HOME = jbr;
+  }
+  const additions = [path.dirname(process.execPath)];
+  if (env.ANDROID_HOME) {
+    additions.push(
+      path.join(env.ANDROID_HOME, "platform-tools"),
+      path.join(env.ANDROID_HOME, "emulator"),
+    );
+  }
+  const current = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
+  env.PATH = [...new Set([...additions, ...current])].join(path.delimiter);
+  return env;
+}
+
+const DEVICE_STATES = new Set(["limpo", "manter"]);
+
+export function parseDeviceState(value, fallback = "manter") {
+  if (!value) return fallback;
+  if (!DEVICE_STATES.has(value)) {
+    throw new Error('--device-state deve ser "limpo" ou "manter".');
+  }
+  return value;
+}
+
+export function parseQueueEntryName(value) {
+  const separator = value.lastIndexOf(":");
+  if (separator === -1) return { name: value, deviceState: null };
+  const candidate = value.slice(separator + 1);
+  if (!DEVICE_STATES.has(candidate)) return { name: value, deviceState: null };
+  return { name: value.slice(0, separator), deviceState: candidate };
+}
+
+export function parseQueueNames(value) {
+  if (!value) return [];
+  return []
+    .concat(value)
+    .flatMap((item) => String(item).split(","))
+    .map((name) => name.trim())
+    .filter(Boolean);
 }
 
 async function readTextArgument(args, directKey, fileKey) {
@@ -339,9 +447,60 @@ async function configFromArguments(args) {
     path.resolve(args.project ?? resumed.projectPath),
   );
   const app = await loadProjectConfig(projectPath);
+  hardenEnvironment(app?.env ?? {});
   await access(projectPath);
   const detected = await detectReactNativeProject(projectPath);
-  const androidPackage = args["android-package"] ?? app?.androidPackage ?? null;
+  // Tarefa de release ou de documentação não passa pela tela: sem device, o loop
+  // não constrói, não instala e não espera Metro por evidência que ninguém vai ler.
+  const noScreenTest = Boolean(args["no-screen-test"]);
+  const androidPackage = noScreenTest
+    ? null
+    : (args["android-package"] ?? app?.androidPackage ?? null);
+
+  const queueNames = parseQueueNames(args.queue);
+  if (queueNames.length) {
+    const conflicting = [
+      "task",
+      "task-file",
+      "tasks",
+      "resume",
+      "plan-only",
+      "acceptance",
+      "acceptance-file",
+    ].find((key) => args[key]);
+    if (conflicting) {
+      throw new Error(
+        `--queue não combina com --${conflicting}: a fila já define as tarefas ` +
+          "(e os critérios pelo par <nome>.aceitacao.md) e commita entre elas.",
+      );
+    }
+  }
+  const queue = [];
+  for (const rawName of queueNames) {
+    const { name, deviceState: entryDeviceState } = parseQueueEntryName(rawName);
+    const resolved = resolveTaskFile(name, app);
+    let text;
+    try {
+      text = (await readFile(resolved.taskFile, "utf8")).trim();
+    } catch {
+      throw new Error(
+        `Tarefa da fila não encontrada: "${name}". Use um caminho de arquivo ou um ` +
+          "nome curto que exista em apps/<nome-da-pasta>/tarefas/<nome>.md.",
+      );
+    }
+    if (!text) throw new Error(`Tarefa da fila está vazia: "${name}".`);
+    const acceptanceText = resolved.acceptanceFile
+      ? (await readFile(resolved.acceptanceFile, "utf8")).trim()
+      : `A feature deve cumprir integralmente esta tarefa:\n${text}`;
+    queue.push({
+      name,
+      taskFile: resolved.taskFile,
+      task: text,
+      acceptanceCriteria: acceptanceText,
+      deviceState: entryDeviceState,
+    });
+  }
+
   const named = resolveTaskFile(args["task-file"], app);
   if (named.taskFile) args["task-file"] = named.taskFile;
   if (named.acceptanceFile && !args.acceptance && !args["acceptance-file"]) {
@@ -355,8 +514,8 @@ async function configFromArguments(args) {
     args.tasks || repeatedTasks
       ? ""
       : (await readTextArgument(args, "task", "task-file")) || resumed?.task || "";
-  if (!task && !args.tasks && !repeatedTasks) {
-    throw new Error("Informe --task, --task-file, --tasks ou --resume.");
+  if (!task && !args.tasks && !repeatedTasks && !queue.length) {
+    throw new Error("Informe --task, --task-file, --tasks, --queue ou --resume.");
   }
 
   const acceptanceCriteria =
@@ -373,6 +532,20 @@ async function configFromArguments(args) {
     args["code-reasoning"] ?? args.reasoning ?? profile?.codeReasoningEffort ?? "low";
   validateReasoningEffort(designReasoningEffort, provider);
   validateReasoningEffort(codeReasoningEffort, provider);
+
+  const escalationModel =
+    args["escalation-model"] ??
+    app?.escalationModel ??
+    (provider === "claude" ? "opus" : "");
+  const escalationReasoning =
+    args["escalation-reasoning"] ??
+    app?.escalationReasoning ??
+    (provider === "claude" ? "max" : "xhigh");
+  const escalation =
+    escalationModel && escalationModel !== "none"
+      ? { model: escalationModel, reasoningEffort: escalationReasoning }
+      : null;
+  if (escalation) validateReasoningEffort(escalation.reasoningEffort, provider);
 
   const marketingMode =
     args["marketing-mode"] ?? app?.marketingMode ?? profile?.marketingMode ?? "none";
@@ -406,6 +579,7 @@ async function configFromArguments(args) {
     metroPort: Number.parseInt(args["metro-port"] ?? "8081", 10),
     skipServiceCheck: Boolean(args["skip-service-check"]),
     resumedBrief: resumed?.designBrief ?? null,
+    resumedFeedback: resumed?.lastFeedback ?? "",
     resumedMarket: resumed?.marketAnalysis ?? null,
     resumedSessions: resumed?.sessionIds ?? resumed?.threadIds ?? null,
     rawArgv: process.argv.slice(2),
@@ -416,8 +590,16 @@ async function configFromArguments(args) {
     profileName: args.profile ?? app?.profile ?? null,
     appName: app?.exists ? app.name : null,
     taskFile: args["task-file"] ?? "",
-    gateOverrides: profile?.gateOverrides ?? {},
+    gateOverrides: noScreenTest
+      ? {
+          ...(profile?.gateOverrides ?? {}),
+          screenTest: false,
+          designCheck: false,
+          uxAudit: false,
+        }
+      : (profile?.gateOverrides ?? {}),
     tasksFile: tasksFile ? resolveInputPath(tasksFile) : "",
+    queue,
     concurrency: parseConcurrency(args.concurrency),
     baseRef: args["base-ref"] ?? "",
     buildCommand: args["build-command"] ?? app?.buildCommand ?? "",
@@ -431,7 +613,10 @@ async function configFromArguments(args) {
     maxCycles: parseMaxCycles(args["max-cycles"] ?? profile?.maxCycles?.toString()),
     agentTimeoutMs: parseAgentTimeout(args["agent-timeout"]),
     model: args.model ?? "",
-    auxiliaryModel: args["aux-model"] ?? "",
+    auxiliaryModel: args["aux-model"] ?? app?.auxModel ?? "",
+    escalation,
+    tokenBudget: parseTokenBudget(args["token-budget"] ?? app?.tokenBudget),
+    deviceState: parseDeviceState(args["device-state"] ?? app?.deviceState),
     designReasoningEffort,
     codeReasoningEffort,
     android: androidPackage
@@ -476,6 +661,20 @@ function runtimeFactory(config, sessionIds = config.resumedSessions) {
     });
 }
 
+function escalationRuntimeFactory(config) {
+  if (!config.escalation) return null;
+  return ({ projectPath }) =>
+    createAgentRuntime({
+      provider: config.provider,
+      projectPath,
+      model: config.escalation.model,
+      auxiliaryModel: config.escalation.model,
+      designReasoningEffort: config.escalation.reasoningEffort,
+      codeReasoningEffort: config.escalation.reasoningEffort,
+      agentTimeoutMs: config.agentTimeoutMs,
+    });
+}
+
 async function loadAdbSteps(config) {
   if (!config.android?.stepsFile) return [];
   const stepsText = await readFile(path.resolve(config.android.stepsFile), "utf8");
@@ -484,6 +683,13 @@ async function loadAdbSteps(config) {
 
 function screenDriverFactory(config, steps) {
   if (!config.android) return () => null;
+  const infraWaitMs = Math.max(config.waitMs ?? 0, 10 * 60_000);
+  const onWait = (why) =>
+    console.log(
+      hintLine(
+        `${why}. Esperando até ${Math.round(infraWaitMs / 60_000)} min antes de tentar de novo.`,
+      ),
+    );
   return ({ projectPath, artifactsDirectory, lock }) =>
     new AndroidTestDriver({
       packageName: config.android.packageName,
@@ -493,7 +699,27 @@ function screenDriverFactory(config, steps) {
       artifactsDirectory,
       projectPath,
       buildCommand: config.buildCommand || undefined,
+      deviceState: config.deviceState ?? "manter",
       lock,
+      waitForServices: async () => {
+        await waitForDevice({
+          deviceId: config.android.deviceId || undefined,
+          waitMs: infraWaitMs,
+          onWait,
+        });
+        await waitForMetro({
+          port: config.metroPort ?? 8081,
+          waitMs: infraWaitMs,
+          onWait,
+        });
+      },
+      onInfraRetry: ({ attempt, retries, message }) =>
+        console.log(
+          hintLine(
+            `Coleta de evidência falhou (${attempt}/${retries}): ${message}. ` +
+              "Esperando device e Metro para tentar de novo.",
+          ),
+        ),
     });
 }
 
@@ -509,7 +735,24 @@ function printHeader(config, extra = []) {
     ["Ciclos", String(config.maxCycles)],
     ["Reasoning", `design ${config.designReasoningEffort} / codigo ${config.codeReasoningEffort}`],
     ["Timeout", `${Math.round(config.agentTimeoutMs / 60_000)} min por agente`],
-    ...(config.android ? [["Android", config.android.packageName]] : []),
+    [
+      "Fallback",
+      config.escalation
+        ? `${config.escalation.model} (${config.escalation.reasoningEffort}) quando um agente travar`
+        : "desligado",
+    ],
+    [
+      "Teto",
+      config.tokenBudget
+        ? `${config.tokenBudget.toLocaleString("pt-BR")} tokens por run`
+        : "sem teto de tokens",
+    ],
+    ...(config.android
+      ? [
+          ["Android", config.android.packageName],
+          ["Device", `estado inicial ${config.deviceState ?? "manter"}`],
+        ]
+      : []),
     ...extra,
   ];
   console.log(rule("configuracao"));
@@ -588,7 +831,10 @@ async function ensureServices(config) {
   console.log(`${style.gray("Metro".padEnd(11))}porta ${config.metroPort ?? 8081}`);
 }
 
-async function runOnce(config, { sessionIds, designBrief, printEvent }) {
+async function runOnce(
+  config,
+  { sessionIds, designBrief, printEvent, resumedFeedback },
+) {
   const runtime = await runtimeFactory(config, sessionIds)({
     projectPath: config.projectPath,
   });
@@ -616,9 +862,17 @@ async function runOnce(config, { sessionIds, designBrief, printEvent }) {
     marketing: config.marketing,
     marketAnalysis,
     designBrief,
+    resumedFeedback: resumedFeedback ?? config.resumedFeedback ?? "",
+    tokenBudget: config.tokenBudget ?? 0,
     appRules: config.appRules ?? "",
     gateOverrides: config.gateOverrides ?? {},
     planOnly: config.planOnly ?? false,
+    createEscalationRuntime: (() => {
+      const factory = escalationRuntimeFactory(config);
+      return factory
+        ? () => factory({ projectPath: config.projectPath })
+        : null;
+    })(),
     onEvent: printEvent,
   });
 
@@ -643,11 +897,18 @@ async function runSingle(config) {
 
   let sessionIds = config.resumedSessions ?? null;
   let designBrief = config.resumedBrief ?? null;
+  let resumedFeedback = config.resumedFeedback ?? "";
   let attempt = 0;
+  let rateWaitMs = 0;
   let outcome;
 
   while (true) {
-    outcome = await runOnce(config, { sessionIds, designBrief, printEvent });
+    outcome = await runOnce(config, {
+      sessionIds,
+      designBrief,
+      printEvent,
+      resumedFeedback,
+    });
     const { result, stateFile } = outcome;
 
     console.log(rule(attempt ? `resultado da tentativa ${attempt + 1}` : "resultado"));
@@ -670,6 +931,27 @@ async function runSingle(config) {
     );
 
     const verdict = classifyOutcome(result);
+
+    // Limite de uso renova sozinho (janela de horas): esperar não consome
+    // retry — repete até voltar, com teto de 6h de espera acumulada.
+    if (verdict.retry && verdict.waitMs) {
+      rateWaitMs += verdict.waitMs;
+      if (rateWaitMs <= 6 * 60 * 60_000) {
+        console.log(
+          hintLine(
+            `Limite de uso do provedor: esperando ${Math.round(verdict.waitMs / 60_000)} min ` +
+              `pela renovação (acumulado ${Math.round(rateWaitMs / 60_000)} min) e retomando sozinho.`,
+          ),
+        );
+        await new Promise((resolve) => setTimeout(resolve, verdict.waitMs));
+        sessionIds = result.sessionIds ?? sessionIds;
+        designBrief = result.designBrief ?? designBrief;
+        resumedFeedback = result.lastFeedback ?? resumedFeedback;
+        continue;
+      }
+      console.log(hintLine("Limite de uso não renovou em 6h; parando retomável."));
+    }
+
     if (!verdict.retry || attempt >= config.retries) {
       console.log(
         `${style.gray("Retomar".padEnd(11))}${style.bold(resumeCommand(config, stateFile))}`,
@@ -686,11 +968,68 @@ async function runSingle(config) {
     );
     sessionIds = result.sessionIds ?? sessionIds;
     designBrief = result.designBrief ?? designBrief;
+    resumedFeedback = result.lastFeedback ?? resumedFeedback;
   }
 
   const status = outcome.result.finalStatus;
   if (status === "BLOCKED") process.exitCode = 2;
   else if (status !== "PASS") process.exitCode = 3;
+  return status;
+}
+
+async function runQueue(config) {
+  console.log(rule("fila sequencial"));
+  config.queue.forEach((entry, index) =>
+    console.log(`${style.gray(String(index + 1).padEnd(11))}${entry.name}`),
+  );
+
+  if (config.dryRun) {
+    console.log(`\n${style.yellow("--dry-run: nada foi executado.")}`);
+    return;
+  }
+
+  if (await repositoryDirty(config.projectPath)) {
+    throw new Error(
+      "A fila commita cada tarefa aprovada, então o projeto precisa começar limpo: " +
+        "commite ou faça stash das alterações pendentes. Sugestão: crie uma branch " +
+        "antes (git switch -c <nome>) para revisar tudo de manhã.",
+    );
+  }
+
+  for (const [index, entry] of config.queue.entries()) {
+    console.log(rule(`fila ${index + 1}/${config.queue.length}: ${entry.name}`));
+    const status = await runSingle({
+      ...config,
+      queue: [],
+      task: entry.task,
+      acceptanceCriteria: entry.acceptanceCriteria,
+      taskFile: entry.taskFile,
+      deviceState: entry.deviceState ?? config.deviceState ?? "manter",
+    });
+
+    if (status !== "PASS") {
+      const remaining = config.queue.slice(index + 1).map((item) => item.name);
+      console.log(
+        hintLine(
+          `Fila parada em "${entry.name}".` +
+            (remaining.length
+              ? ` Depois de resolver e commitar, rode --queue ${remaining.join(",")} para o restante.`
+              : ""),
+        ),
+      );
+      return;
+    }
+
+    const commit = await commitWorktree(
+      config.projectPath,
+      commitMessage(entry.task),
+    );
+    console.log(
+      `${style.gray("Commit".padEnd(11))}${commit ?? "nada a commitar"} ${style.gray(`(${entry.name})`)}`,
+    );
+  }
+
+  console.log(rule("fila concluida"));
 }
 
 async function loadTasks(config) {
@@ -811,6 +1150,8 @@ async function runTasksBatch(config) {
     createRuntime: runtimeFactory(config),
     createStateStore: () => new JsonRunStateStore(),
     createScreenDriver: screenDriverFactory(config, steps),
+    createEscalationRuntime: escalationRuntimeFactory(config),
+    tokenBudget: config.tokenBudget ?? 0,
     onEvent: printEvent,
   });
 
@@ -871,9 +1212,11 @@ async function main() {
   validateReasoningEffort(config.codeReasoningEffort, config.provider);
 
   const run = () =>
-    config.tasksFile || config.inlineTasks
-      ? runTasksBatch(config)
-      : runSingle(config);
+    config.queue?.length
+      ? runQueue(config)
+      : config.tasksFile || config.inlineTasks
+        ? runTasksBatch(config)
+        : runSingle(config);
 
   if (config.dryRun) {
     await printLockHolders(config);
@@ -883,7 +1226,15 @@ async function main() {
 
   await withLocks(
     lockKeysFor(config),
-    { task: (config.task || config.tasksFile || "lote").slice(0, 80) },
+    {
+      task: (
+        config.task ||
+        config.tasksFile ||
+        (config.queue?.length
+          ? `fila: ${config.queue.map((entry) => entry.name).join(", ")}`
+          : "lote")
+      ).slice(0, 80),
+    },
     { waitMs: config.waitMs ?? 0 },
     run,
   );
