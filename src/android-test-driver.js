@@ -1,5 +1,5 @@
 import { exec, execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -122,12 +122,24 @@ export function validateAdbSteps(steps) {
         "swipe",
         "wait",
         "checkpoint",
+        "night",
+        "hideKeyboard",
+        "tree",
+        "longPress",
       ].includes(action)
     ) {
       throw new Error(`Ação ADB não permitida: ${action}.`);
     }
     return { ...step };
   });
+}
+
+/** BUILD_FAILED e STEP_FAILED são defeitos que o feature_lead corrige com
+ *  feedback; qualquer outro erro (device, Metro, adb) é infra e vale retry. */
+export function classifyEvidenceError(error) {
+  if (error?.code === "BUILD_FAILED") return "build";
+  if (error?.code === "STEP_FAILED") return "step";
+  return "infra";
 }
 
 export class AndroidTestDriver {
@@ -143,6 +155,12 @@ export class AndroidTestDriver {
     readyTimeoutMs = 120_000,
     readyPollMs = 3_000,
     lock = (operation) => operation(),
+    infraRetries = 3,
+    infraBackoffMs = 20_000,
+    waitForServices = null,
+    onInfraRetry = null,
+    execFileRunner = execFileAsync,
+    deviceState = "manter",
   }) {
     this.packageName = packageName;
     this.activity = activity;
@@ -155,6 +173,70 @@ export class AndroidTestDriver {
     this.readyTimeoutMs = readyTimeoutMs;
     this.readyPollMs = readyPollMs;
     this.lock = lock;
+    this.infraRetries = infraRetries;
+    this.infraBackoffMs = infraBackoffMs;
+    this.waitForServices = waitForServices;
+    this.onInfraRetry = onInfraRetry;
+    this.execFileRunner = execFileRunner;
+    this.rtkMissing = false;
+    this.deviceState = deviceState;
+    this.devicePrepared = false;
+  }
+
+  /** O agente edita package.json mas nada garante o install antes do build:
+   *  npm mantém node_modules/.package-lock.json em sincronia, então divergência
+   *  entre ele e o package-lock.json da raiz denuncia dependência fantasma. */
+  async ensureDependencies() {
+    if (!this.projectPath) return null;
+    let expected;
+    try {
+      expected = await readFile(
+        path.join(this.projectPath, "package-lock.json"),
+        "utf8",
+      );
+    } catch {
+      return null;
+    }
+    let installed = null;
+    try {
+      installed = await readFile(
+        path.join(this.projectPath, "node_modules", ".package-lock.json"),
+        "utf8",
+      );
+    } catch {
+      installed = null;
+    }
+    if (installed !== null && installed === expected) return null;
+    return this.runInstall();
+  }
+
+  async runInstall() {
+    try {
+      const { stdout, stderr } = await execAsync(
+        "npm install --no-audit --no-fund",
+        {
+          cwd: this.projectPath,
+          encoding: "utf8",
+          maxBuffer: 32 * 1024 * 1024,
+          timeout: 10 * 60_000,
+        },
+      );
+      return { status: "OK", output: trimOutput(`${stdout}\n${stderr}`, 800) };
+    } catch (error) {
+      const output = trimOutput(
+        `${error.stdout ?? ""}\n${error.stderr ?? error.message}`,
+        2000,
+      );
+      const failure = new Error(
+        `npm install falhou antes do teste de tela.\n${output}`,
+      );
+      // Conflito de dependência é corrigível pelo agente; o resto (rede,
+      // registry fora) é infra e ganha retry.
+      if (/ERESOLVE|ETARGET|EBADENGINE|peer dep/i.test(output)) {
+        failure.code = "BUILD_FAILED";
+      }
+      throw failure;
+    }
   }
 
   async buildAndInstall() {
@@ -183,19 +265,32 @@ export class AndroidTestDriver {
   }
 
   async runTextAdb(args, maxCharacters = 3000) {
-    const { stdout, stderr } = await execFileAsync(
-      "rtk",
-      ["adb", ...this.adbPrefix(), ...args],
-      {
-        encoding: "utf8",
-        maxBuffer: 4 * 1024 * 1024,
-      },
-    );
-    return trimOutput(`${stdout}\n${stderr}`, maxCharacters);
+    // rtk vem do shell interativo; num cron ele pode não existir no PATH —
+    // nesse caso o adb puro serve, só sem a filtragem de tokens.
+    const launchers = this.rtkMissing ? [["adb"]] : [["rtk", "adb"], ["adb"]];
+    for (const [index, launcher] of launchers.entries()) {
+      try {
+        const { stdout, stderr } = await this.execFileRunner(
+          launcher[0],
+          [...launcher.slice(1), ...this.adbPrefix(), ...args],
+          {
+            encoding: "utf8",
+            maxBuffer: 4 * 1024 * 1024,
+          },
+        );
+        return trimOutput(`${stdout}\n${stderr}`, maxCharacters);
+      } catch (error) {
+        const canFallback =
+          index === 0 && launchers.length > 1 && error.code === "ENOENT";
+        if (!canFallback) throw error;
+        this.rtkMissing = true;
+      }
+    }
+    throw new Error("adb indisponível.");
   }
 
   async runBinaryAdb(args) {
-    const { stdout } = await execFileAsync(
+    const { stdout } = await this.execFileRunner(
       "adb",
       [...this.adbPrefix(), ...args],
       {
@@ -219,7 +314,7 @@ export class AndroidTestDriver {
     return devices[0].trim();
   }
 
-  async runStep(step, cycleDirectory, screenshots) {
+  async runStep(step, cycleDirectory, screenshots, trees = []) {
     switch (step.action) {
       case "tap":
         await this.runTextAdb([
@@ -239,9 +334,11 @@ export class AndroidTestDriver {
         const center = node ? centerOfBounds(node.bounds) : null;
         if (!center) {
           if (step.optional) break;
-          throw new Error(
+          const failure = new Error(
             `tapText: "${step.value}" não encontrado na tela atual.`,
           );
+          failure.code = "STEP_FAILED";
+          throw failure;
         }
         await this.runTextAdb([
           "shell",
@@ -301,10 +398,87 @@ export class AndroidTestDriver {
         await new Promise((resolve) => setTimeout(resolve, milliseconds));
         break;
       }
-      case "checkpoint":
-        screenshots.push(await this.captureScreenshot(cycleDirectory, step.name));
+      case "checkpoint": {
+        const shot = await this.captureScreenshot(cycleDirectory, step.name);
+        // Screenshot com teclado aberto engana o julgamento de visibilidade:
+        // o tester precisa saber o que estava cobrindo a metade de baixo.
+        if (await this.isKeyboardVisible()) shot.keyboard = true;
+        screenshots.push(shot);
         break;
+      }
+      case "hideKeyboard":
+        await this.dismissKeyboard();
+        break;
+      case "tree": {
+        const treeName = String(step.name ?? `tree-${trees.length + 1}`);
+        trees.push({ name: treeName, nodes: await this.captureUiHierarchy() });
+        break;
+      }
+      case "longPress": {
+        const x = validateInteger(step.x, "x");
+        const y = validateInteger(step.y, "y");
+        await this.runTextAdb([
+          "shell",
+          "input",
+          "swipe",
+          x,
+          y,
+          x,
+          y,
+          String(step.duration ?? 600),
+        ]);
+        break;
+      }
+      case "night": {
+        const mode = step.value === "yes" || step.value === true ? "yes" : "no";
+        await this.runTextAdb(["shell", "cmd", "uimode", "night", mode]);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        break;
+      }
     }
+  }
+
+  async isKeyboardVisible() {
+    try {
+      const output = await this.runTextAdb(
+        ["shell", "dumpsys input_method | grep mInputShown"],
+        300,
+      );
+      return output.includes("mInputShown=true");
+    } catch {
+      return false;
+    }
+  }
+
+  // BACK com IME aberto é consumido pelo teclado: fecha sem navegar.
+  async dismissKeyboard() {
+    if (!(await this.isKeyboardVisible())) return false;
+    await this.runTextAdb(["shell", "input", "keyevent", "4"]);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return true;
+  }
+
+  async isAppForeground() {
+    try {
+      const focus = await this.runTextAdb(
+        ["shell", "dumpsys window | grep mCurrentFocus"],
+        500,
+      );
+      return focus.includes(this.packageName);
+    } catch {
+      return true;
+    }
+  }
+
+  async launchApp() {
+    return this.runTextAdb([
+      "shell",
+      "am",
+      "start",
+      "-W",
+      "-n",
+      `${this.packageName}/${this.activity}`,
+    ]);
   }
 
   async captureScreenshot(cycleDirectory, name = "final") {
@@ -312,6 +486,13 @@ export class AndroidTestDriver {
     const screenshotPath = path.join(cycleDirectory, `${safeName}.png`);
     const screenshot = await this.runBinaryAdb(["exec-out", "screencap", "-p"]);
     await writeFile(screenshotPath, screenshot);
+    // Device físico fotografa em resolução alta e imagem não entra no cache do
+    // modelo: reduzir no host corta ~4x o custo de cada evidência sem perder
+    // legibilidade de julgamento.
+    await execAsync(
+      `sips --resampleHeight 1200 ${JSON.stringify(screenshotPath)}`,
+      { timeout: 15_000 },
+    ).catch(() => {});
     return { name: safeName, path: screenshotPath };
   }
 
@@ -330,8 +511,28 @@ export class AndroidTestDriver {
     return compactUiHierarchy(xml.toString("utf8"));
   }
 
-  collectEvidence({ cycle }) {
-    return this.lock(() => this.collectEvidenceExclusive({ cycle }));
+  async collectEvidence({ cycle, extraSteps = [] }) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.lock(() =>
+          this.collectEvidenceExclusive({ cycle, extraSteps }),
+        );
+      } catch (error) {
+        if (
+          classifyEvidenceError(error) !== "infra" ||
+          attempt > this.infraRetries
+        ) {
+          throw error;
+        }
+        this.onInfraRetry?.({
+          attempt,
+          retries: this.infraRetries,
+          message: error.message,
+        });
+        await this.waitForServices?.().catch(() => {});
+        await new Promise((resolve) => setTimeout(resolve, this.infraBackoffMs));
+      }
+    }
   }
 
   async waitUntilRendered() {
@@ -353,41 +554,106 @@ export class AndroidTestDriver {
     return { ready: false, nodes };
   }
 
-  async collectEvidenceExclusive({ cycle }) {
+  async collectEvidenceExclusive({ cycle, extraSteps = [] }) {
+    const steps = extraSteps.length
+      ? [...this.steps, ...validateAdbSteps(extraSteps)]
+      : this.steps;
     const cycleDirectory = path.join(this.artifactsDirectory, `cycle-${cycle}`);
     await mkdir(cycleDirectory, { recursive: true });
 
+    const install = await this.ensureDependencies();
     const build = await this.buildAndInstall();
     const device = await this.ensureDevice();
+    // Device físico via USB precisa do reverse para enxergar o Metro do host;
+    // no emulador o comando é inócuo.
+    await this.runTextAdb(["reverse", "tcp:8081", "tcp:8081"]).catch(() => {});
+    // Tela bloqueada renderia o keyguard/AOD como "evidência": acorda, tenta
+    // dispensar e, se houver PIN segurando, é infra (retry espera o humano).
+    await this.runTextAdb(["shell", "input", "keyevent", "KEYCODE_WAKEUP"]).catch(() => {});
+    await this.runTextAdb(["shell", "wm", "dismiss-keyguard"]).catch(() => {});
+    const keyguard = await this.runTextAdb(
+      ["shell", "dumpsys window | grep isKeyguardShowing"],
+      300,
+    ).catch(() => "");
+    if (keyguard.includes("isKeyguardShowing=true")) {
+      throw new Error(
+        "Tela do device bloqueada (keyguard com PIN/biometria): desbloqueie o " +
+          "aparelho ou desative o bloqueio de tela durante os testes.",
+      );
+    }
+    // Estado herdado da tarefa anterior (tema escuro, sessão, teclado) não
+    // pode contaminar a evidência: tema sempre volta ao claro; "limpo" zera os
+    // dados do app uma vez por run.
+    await this.runTextAdb(["shell", "cmd", "uimode", "night", "no"]).catch(
+      () => {},
+    );
+    if (this.deviceState === "limpo" && !this.devicePrepared) {
+      this.devicePrepared = true;
+      await this.runTextAdb(["shell", "pm", "clear", this.packageName]);
+    }
     await this.runTextAdb(["logcat", "-c"]);
     await this.runTextAdb(["shell", "am", "force-stop", this.packageName]);
-    const launch = await this.runTextAdb([
-      "shell",
-      "am",
-      "start",
-      "-W",
-      "-n",
-      `${this.packageName}/${this.activity}`,
-    ]);
+    const launch = await this.launchApp();
 
     let rendered = await this.waitUntilRendered();
     if (!rendered.ready) {
       await this.runTextAdb(["shell", "am", "force-stop", this.packageName]);
-      await this.runTextAdb([
-        "shell",
-        "am",
-        "start",
-        "-W",
-        "-n",
-        `${this.packageName}/${this.activity}`,
-      ]);
+      await this.launchApp();
       rendered = await this.waitUntilRendered();
     }
 
     const screenshots = [];
-    for (const step of this.steps) {
-      await this.runStep(step, cycleDirectory, screenshots);
+    const interruptions = [];
+    const ineffectiveSteps = [];
+    const trees = [];
+    const INTERACTIVE = new Set([
+      "tap",
+      "tapText",
+      "text",
+      "keyevent",
+      "swipe",
+      "longPress",
+    ]);
+    let lastSignature = null;
+    for (const step of steps) {
+      const interactive = INTERACTIVE.has(step.action);
+      if (interactive && lastSignature === null) {
+        lastSignature = JSON.stringify(await this.captureUiHierarchy().catch(() => null));
+      }
+      await this.runStep(step, cycleDirectory, screenshots, trees);
+      // Passo interativo que não altera a árvore de UI é o tester pedindo a
+      // mesma evidência para sempre: registrar quebra o loop.
+      if (interactive) {
+        const signature = JSON.stringify(
+          await this.captureUiHierarchy().catch(() => null),
+        );
+        if (signature === lastSignature) {
+          ineffectiveSteps.push(
+            `${step.action}` +
+              (step.value !== undefined ? ` (${step.value})` : "") +
+              (step.x !== undefined ? ` (${step.x},${step.y})` : "") +
+              " não alterou a tela",
+          );
+        }
+        lastSignature = signature;
+      }
+      // App fora do foreground após um passo (BACK na raiz, crash) renderia
+      // launcher em todos os checkpoints seguintes: religa e registra o fato
+      // como evidência — o tester decide se é bug de navegação.
+      if (!(await this.isAppForeground())) {
+        interruptions.push(
+          `app saiu da tela após o passo ${step.action}` +
+            (step.value ? ` (${step.value})` : "") +
+            (step.name ? ` (${step.name})` : "") +
+            "; relançado para continuar a coleta",
+        );
+        await this.launchApp();
+        await this.waitUntilRendered();
+      }
     }
+    // Captura final sempre com teclado fechado: é ela que ancora "elemento
+    // visível/ausente".
+    await this.dismissKeyboard();
     screenshots.push(await this.captureScreenshot(cycleDirectory));
 
     // A árvore precisa ser lida DEPOIS dos passos: reaproveitar a leitura da
@@ -400,14 +666,24 @@ export class AndroidTestDriver {
       ),
     ]);
 
+    if (steps.some((step) => step.action === "night")) {
+      await this.runTextAdb(["shell", "cmd", "uimode", "night", "no"]).catch(
+        () => {},
+      );
+    }
+
     return {
       device,
       packageName: this.packageName,
       activity: this.activity,
+      install,
       build,
       launch,
       rendered: rendered.ready,
       screenshots,
+      interruptions,
+      ineffectiveSteps,
+      trees,
       uiNodes,
       errors,
     };
