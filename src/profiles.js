@@ -26,6 +26,21 @@ export const profiles = {
       codeReview: null,
     },
   },
+  deep: {
+    description:
+      "Feature grande sem supervisão (auth, persistência, fluxo novo): " +
+      "reasoning alto no design, médio no código, revisão sempre, mais ciclos.",
+    marketingMode: "context",
+    designReasoningEffort: "high",
+    codeReasoningEffort: "medium",
+    maxCycles: 5,
+    gateOverrides: {
+      screenTest: true,
+      designCheck: true,
+      uxAudit: true,
+      codeReview: true,
+    },
+  },
 };
 
 export const profileNames = Object.keys(profiles);

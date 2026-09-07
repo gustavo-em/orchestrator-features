@@ -19,10 +19,24 @@ export class JsonRunStateStore {
   }
 
   async save(state) {
-    await mkdir(this.runsDirectory, { recursive: true });
+    const payload = `${JSON.stringify(state, null, 2)}\n`;
     const temporaryPath = `${this.filePath}.tmp`;
-    await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-    await rename(temporaryPath, this.filePath);
+    // EPERM/EBUSY transitórios (TCC, indexador, antivírus) não podem derrubar
+    // um run noturno: tenta de novo e, em último caso, grava direto sem rename.
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await mkdir(this.runsDirectory, { recursive: true });
+        await writeFile(temporaryPath, payload, "utf8");
+        await rename(temporaryPath, this.filePath);
+        return this.filePath;
+      } catch (error) {
+        if (attempt === 3) {
+          await writeFile(this.filePath, payload, "utf8");
+          return this.filePath;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
+    }
     return this.filePath;
   }
 }

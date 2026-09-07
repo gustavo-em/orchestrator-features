@@ -111,7 +111,10 @@ test("Claude mantém sessão e alterna high para design e low para código", asy
   assert.equal(calls[1].options.resume, "claude-session-1");
   assert.equal(calls[1].options.permissionMode, "acceptEdits");
   assert.equal(calls[1].options.tools.includes("Edit"), true);
-  assert.deepEqual(calls[1].options.skills, ["vercel-react-native-skills"]);
+  assert.deepEqual(calls[1].options.skills, [
+    "vercel-react-native-skills",
+    "firebase-rn",
+  ]);
   assert.equal(calls[2].options.effort, "high");
   assert.equal(calls[2].options.resume, "claude-session-1");
   assert.deepEqual(runtime.getReasoningProfile(), {

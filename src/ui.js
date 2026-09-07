@@ -158,6 +158,80 @@ export function createPrinter({
       case "baseline.failed":
         write(slug, "tester", style.yellow(`captura falhou: ${event.message}`));
         return;
+      case "budget.exhausted":
+        write(
+          slug,
+          "feature_lead",
+          style.yellow(
+            `teto de tokens atingido (entrada ${event.usage.inputTokens} · saida ${event.usage.outputTokens}); parando retomável`,
+          ),
+        );
+        return;
+      case "impasse.arbitration.started":
+        write(
+          slug,
+          "feature_lead",
+          style.yellow(
+            "impasse entre revisor e implementação; arbitrando contra o workspace antes de parar",
+          ),
+        );
+        return;
+      case "impasse.arbitration.completed":
+        write(
+          slug,
+          "feature_lead",
+          `${style.green("arbitrado")} ${event.result.summary ?? ""}`,
+        );
+        return;
+      case "impasse.arbitration.failed":
+        write(
+          slug,
+          "feature_lead",
+          style.yellow(`arbitragem falhou: ${event.message}`),
+        );
+        return;
+      case "escalation.started":
+        write(
+          slug,
+          event.agent,
+          style.yellow("travou; tentando uma vez com o modelo de fallback"),
+        );
+        return;
+      case "escalation.completed":
+        write(
+          slug,
+          event.agent,
+          `${statusStyle(event.result.status)(style.bold(event.result.status))} ${style.gray("(fallback)")} ${event.result.summary ?? ""}`,
+        );
+        return;
+      case "escalation.failed":
+        write(slug, event.agent, style.yellow(`fallback falhou: ${event.message}`));
+        return;
+      case "tester.evidence.requested":
+        write(
+          slug,
+          "tester",
+          style.gray(
+            `pediu ${event.steps} passo(s) de interação; capturando evidência extra`,
+          ),
+        );
+        return;
+      case "tester.evidence.failed":
+        write(
+          slug,
+          "tester",
+          style.yellow(`captura extra falhou: ${event.message}`),
+        );
+        return;
+      case "evidence.unavailable":
+        write(
+          slug,
+          "tester",
+          style.yellow(
+            `device/Metro indisponível mesmo após esperas: ${event.message}`,
+          ),
+        );
+        return;
       case "redesign.escalated":
         write(
           slug,

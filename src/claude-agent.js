@@ -35,13 +35,18 @@ const DEFAULT_SKILL_BRIDGE_ROOT = fileURLToPath(
 
 export const SKILLS_BY_AGENT = {
   feature_lead: {
-    design: ["feature-design-orchestrator", "mobile-design"],
-    code: ["vercel-react-native-skills"],
+    design: [
+      "produto",
+      "feature-design-orchestrator",
+      "mobile-design",
+      "design-director",
+    ],
+    code: ["vercel-react-native-skills", "firebase-rn"],
   },
   market_analyst: { research: ["marketing"] },
   tester: { review: ["tester"] },
-  code_reviewer: { review: ["vercel-react-native-skills"] },
-  ux_auditor: { review: ["mobile-app-ux-auditor"] },
+  code_reviewer: { review: ["vercel-react-native-skills", "firebase-rn"] },
+  ux_auditor: { review: ["mobile-app-ux-auditor", "design-director"] },
 };
 
 async function ensureSkillBridgeLink(source, destination) {
@@ -354,9 +359,11 @@ export class ClaudeAgentRuntime {
         : READ_TOOLS;
     const effort = isFeatureLead
       ? this.reasoningProfile[phase]
-      : ["tester", "code_reviewer"].includes(agentName)
-        ? "low"
-        : this.specialistReasoningEffort;
+      : agentName === "tester"
+        ? "medium"
+        : agentName === "code_reviewer"
+          ? "low"
+          : this.specialistReasoningEffort;
     const extraDirectories = evidenceDirectories(evidence);
     const discoveredSkills = await this.skillResolver({
       agentName,

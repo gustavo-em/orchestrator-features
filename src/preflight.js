@@ -70,6 +70,7 @@ const RETRYABLE_REASONS = new Set([
   "auditor_blocked",
   "code_review_blocked",
   "design_evidence_unavailable",
+  "screen_evidence_infra_unavailable",
 ]);
 
 const NEVER_RETRY_REASONS = new Set([
@@ -84,6 +85,15 @@ const NEVER_RETRY_REASONS = new Set([
 const CONTRADICTION_PATTERN =
   /contradiz|contradi[çc][ãa]o|conflita|incompat[íi]vel com o contrato|proíbe|proibe/i;
 
+const RATE_LIMIT_PATTERN =
+  /usage limit|session limit|hit your .*limit|resets \d|quota|rate.?limit|429|overloaded|529/i;
+
+export function isRateLimited(text) {
+  return RATE_LIMIT_PATTERN.test(String(text ?? ""));
+}
+const AUTH_PATTERN =
+  /OAuth session expired|Failed to authenticate|invalid_api_key|401/i;
+
 export function classifyOutcome(state) {
   const reason = state?.stopReason ?? "";
   const messages = [
@@ -97,6 +107,12 @@ export function classifyOutcome(state) {
   if (state?.finalStatus === "PASS") {
     return { retry: false, why: "concluído" };
   }
+  if (reason === "token_budget_exhausted") {
+    return {
+      retry: false,
+      why: "teto de tokens do run atingido; retome manualmente para gastar mais",
+    };
+  }
   if (NEVER_RETRY_REASONS.has(reason)) {
     return { retry: false, why: "decisão do loop, repetir não muda nada" };
   }
@@ -104,6 +120,18 @@ export function classifyOutcome(state) {
     return {
       retry: false,
       why: "o agente apontou contradição entre a tarefa e as regras; isso precisa de decisão sua",
+    };
+  }
+  if (AUTH_PATTERN.test(messages)) {
+    return { retry: false, why: "falha de credencial; repetir não resolve" };
+  }
+  // Limite de uso renova sozinho: vale esperar e retomar, ao contrário de
+  // credencial quebrada.
+  if (RATE_LIMIT_PATTERN.test(messages)) {
+    return {
+      retry: true,
+      waitMs: 20 * 60_000,
+      why: "limite de uso do provedor; esperando a renovação antes de retomar",
     };
   }
   if (explainAgentError(messages)) {

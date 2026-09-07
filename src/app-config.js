@@ -49,6 +49,15 @@ export async function loadProjectConfig(projectPath, root = appsRoot) {
     adbDevice: config.adbDevice,
     adbSteps: resolve(config.adbSteps),
     buildCommand: config.buildCommand,
+    escalationModel: config.escalationModel,
+    escalationReasoning: config.escalationReasoning,
+    auxModel: config.auxModel,
+    tokenBudget: config.tokenBudget,
+    deviceState: config.deviceState,
+    env:
+      config.env && typeof config.env === "object" && !Array.isArray(config.env)
+        ? config.env
+        : undefined,
     appCategory: config.appCategory,
     competitors: Array.isArray(config.competitors)
       ? config.competitors.join(",")

@@ -26,6 +26,10 @@ export function slugify(text, maxLength = 40) {
   return slug || "tarefa";
 }
 
+export async function repositoryDirty(repositoryPath) {
+  return Boolean(await git(repositoryPath, ["status", "--porcelain"]));
+}
+
 export async function assertCleanRepository(repositoryPath) {
   const status = await git(repositoryPath, ["status", "--porcelain"]);
   if (status) {

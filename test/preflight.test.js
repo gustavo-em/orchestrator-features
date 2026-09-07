@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { checkProviderAuth, explainAgentError } from "../src/preflight.js";
+import {
+  checkProviderAuth,
+  classifyOutcome,
+  explainAgentError,
+} from "../src/preflight.js";
 import { mergeMarketLanes } from "../agents/market-analyst.js";
 
 test("erro de autenticação vira dica acionável", () => {
@@ -43,4 +47,23 @@ test("lote de mercado sem sucesso mostra o motivo real", () => {
 
   assert.equal(merged.status, "BLOCKED");
   assert.match(merged.summary, /OAuth session expired/);
+});
+
+test("limite de uso renovável espera e retenta; credencial não", () => {
+  const rateLimited = classifyOutcome({
+    finalStatus: "BLOCKED",
+    stopReason: "feature_lead_blocked",
+    designBrief: { summary: "429 rate limit exceeded, retry later" },
+    cycles: [],
+  });
+  assert.equal(rateLimited.retry, true);
+  assert.equal(rateLimited.waitMs, 20 * 60_000);
+
+  const badAuth = classifyOutcome({
+    finalStatus: "BLOCKED",
+    stopReason: "feature_lead_blocked",
+    designBrief: { summary: "Failed to authenticate: OAuth session expired" },
+    cycles: [],
+  });
+  assert.equal(badAuth.retry, false);
 });
