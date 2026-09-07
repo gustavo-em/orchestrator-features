@@ -143,49 +143,6 @@ export const auditorOutputSchema = {
   additionalProperties: false,
 };
 
-export const designCheckOutputSchema = {
-  type: "object",
-  properties: {
-    status: {
-      type: "string",
-      enum: ["PASS", "CHANGES_REQUIRED", "BLOCKED"],
-    },
-    summary: { type: "string" },
-    requiresRedesign: { type: "boolean" },
-    findings: {
-      type: "array",
-      maxItems: 5,
-      items: {
-        type: "object",
-        properties: {
-          priority: {
-            type: "string",
-            enum: ["critical", "high", "medium", "low"],
-          },
-          title: { type: "string" },
-          evidence: { type: "string" },
-          recommendation: { type: "string" },
-        },
-        required: ["priority", "title", "evidence", "recommendation"],
-        additionalProperties: false,
-      },
-    },
-    checksPerformed: {
-      type: "array",
-      maxItems: 8,
-      items: { type: "string" },
-    },
-  },
-  required: [
-    "status",
-    "summary",
-    "requiresRedesign",
-    "findings",
-    "checksPerformed",
-  ],
-  additionalProperties: false,
-};
-
 export const testerOutputSchema = {
   type: "object",
   properties: {
@@ -216,6 +173,46 @@ export const testerOutputSchema = {
       type: "array",
       maxItems: 8,
       items: { type: "string" },
+    },
+    requestedSteps: {
+      type: "array",
+      maxItems: 40,
+      items: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: [
+              "tap",
+              "tapText",
+              "scrollToEnd",
+              "text",
+              "keyevent",
+              "swipe",
+              "wait",
+              "checkpoint",
+              "night",
+              "hideKeyboard",
+              "tree",
+              "longPress",
+            ],
+          },
+          value: { type: ["string", "number"] },
+          name: { type: "string" },
+          optional: { type: "boolean" },
+          x: { type: "integer" },
+          y: { type: "integer" },
+          x1: { type: "integer" },
+          y1: { type: "integer" },
+          x2: { type: "integer" },
+          y2: { type: "integer" },
+          duration: { type: "integer" },
+          ms: { type: "integer" },
+          times: { type: "integer" },
+        },
+        required: ["action"],
+        additionalProperties: false,
+      },
     },
   },
   required: ["status", "summary", "findings", "observations"],
@@ -300,64 +297,6 @@ export const marketLaneOutputSchema = {
     "opportunities",
     "risks",
     "featureContext",
-  ],
-  additionalProperties: false,
-};
-
-export const marketAnalysisOutputSchema = {
-  type: "object",
-  properties: {
-    status: { type: "string", enum: ["COMPLETE", "BLOCKED"] },
-    summary: { type: "string" },
-    competitors: {
-      type: "array",
-      maxItems: 5,
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string" },
-          relevance: { type: "string" },
-          strengths: { type: "array", maxItems: 3, items: { type: "string" } },
-          weaknesses: { type: "array", maxItems: 3, items: { type: "string" } },
-          featurePattern: { type: "string" },
-          sourceUrls: {
-            type: "array",
-            maxItems: 3,
-            items: { type: "string" },
-          },
-        },
-        required: [
-          "name",
-          "relevance",
-          "strengths",
-          "weaknesses",
-          "featurePattern",
-          "sourceUrls",
-        ],
-        additionalProperties: false,
-      },
-    },
-    opportunities: {
-      type: "array",
-      maxItems: 5,
-      items: { type: "string" },
-    },
-    risks: { type: "array", maxItems: 5, items: { type: "string" } },
-    featureContext: {
-      type: "array",
-      maxItems: 5,
-      items: { type: "string" },
-    },
-    accessedAt: { type: "string" },
-  },
-  required: [
-    "status",
-    "summary",
-    "competitors",
-    "opportunities",
-    "risks",
-    "featureContext",
-    "accessedAt",
   ],
   additionalProperties: false,
 };

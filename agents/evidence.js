@@ -3,9 +3,17 @@ export function compactEvidence(evidence) {
   return {
     uiNodes: evidence.uiNodes,
     errors: evidence.errors,
-    screenshots: (evidence.screenshots ?? []).map(({ name, path }) => ({
+    interruptions: evidence.interruptions?.length
+      ? evidence.interruptions
+      : undefined,
+    ineffectiveSteps: evidence.ineffectiveSteps?.length
+      ? evidence.ineffectiveSteps
+      : undefined,
+    trees: evidence.trees?.length ? evidence.trees : undefined,
+    screenshots: (evidence.screenshots ?? []).map(({ name, path, keyboard }) => ({
       name,
       path,
+      ...(keyboard ? { keyboard: true } : {}),
     })),
   };
 }

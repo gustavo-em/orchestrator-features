@@ -21,10 +21,16 @@ Você é feature_lead. Você será dono desta feature até a conclusão, nesta m
 
 Nesta etapa, planeje a feature; ainda não edite arquivos.
 
+Use $produto antes de qualquer design: feche o trabalho do usuário, a menor versão
+valiosa, critérios observáveis, riscos de produto e dependências externas.
+worthBuilding, worthReason, reducedScope, acceptanceChecks e blockers devem sair
+dessa análise; dependência externa que você não pode criar (credencial, console,
+serviço pago) é blocker, nunca stub silencioso.
+
 Use $feature-design-orchestrator. Aplique seu roteamento por estágio:
 - classifique como meaningful, trivial ou backend_only;
 - use mobile-design somente para fluxo, interação, estados, acessibilidade ou convenções móveis;
-- use design_director somente para hierarquia, identidade, componentes, assets e motion;
+- use $design-director somente para hierarquia, identidade, componentes, assets e motion;
 - não chame todos os especialistas por padrão;
 - resolva conflitos por: conclusão, usabilidade, clareza, acessibilidade, convenções, consistência e estética.
 
@@ -109,7 +115,8 @@ Retorne somente JSON solicitado.
     return `
 Continue como feature_lead na MESMA sessão. Fase de design encerrada. Agora execute o contrato abaixo.
 
-Use $vercel-react-native-skills antes de modificar React Native/Expo. Leia somente regras relevantes aos arquivos tocados.
+Use $vercel-react-native-skills antes de modificar React Native/Expo. Use $firebase-rn
+ao tocar Auth, Firestore ou sessão. Leia somente regras relevantes aos arquivos tocados.
 
 Regras:
 - Preserve alterações existentes e trabalhe somente no escopo.
@@ -174,6 +181,8 @@ implementationConstraints, outOfScope e acceptanceChecks seguem inalterados.
 Regras:
 - Não recomece, não redesenhe e não reabra decisões aprovadas.
 - Não repita o contrato nem reinspecione o que já foi lido nesta sessão.
+- Se a âncora de um achado contradiz o workspace real, não corrija:
+  explique no summary.
 - Corrija somente os achados abaixo e preserve o restante da implementação.
 - Não persiga nada listado em outOfScope.
 - Prefira verificações direcionadas, curtas e filtradas por RTK.

@@ -330,6 +330,204 @@ test("tester falho volta ao dev antes das revisões", async () => {
   assert.equal(runtime.auditIndex, 1);
 });
 
+test("infra indisponível na evidência encerra como STOPPED retomável", async () => {
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+  });
+  const events = [];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: {
+      async collectEvidence() {
+        throw new Error("nenhum device conectado");
+      },
+    },
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    onEvent: (event) => events.push(event.type),
+  });
+
+  assert.equal(result.finalStatus, "STOPPED");
+  assert.equal(result.stopReason, "screen_evidence_infra_unavailable");
+  assert.ok(events.includes("evidence.unavailable"));
+  assert.equal(runtime.testerIndex, 0);
+});
+
+test("build quebrado vira feedback para o feature_lead em vez de encerrar", async () => {
+  let calls = 0;
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    executors: [executorResult("v1"), executorResult("v2")],
+    testers: [testerResult("PASS")],
+    audits: [review("PASS")],
+  });
+  const fingerprints = ["a", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: {
+      async collectEvidence() {
+        calls += 1;
+        if (calls === 1) {
+          const failure = new Error(
+            "Build falhou antes do teste de tela.\nerror TS2304",
+          );
+          failure.code = "BUILD_FAILED";
+          throw failure;
+        }
+        return { screenshots: [], uiNodes: [], errors: "" };
+      },
+    },
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.match(runtime.executorContexts[1].feedback, /build/i);
+  assert.equal(runtime.testerIndex, 1);
+});
+
+test("tester pede evidência extra e aprova no mesmo ciclo", async () => {
+  const failPedindoEvidencia = {
+    ...testerResult("FAIL"),
+    requestedSteps: [
+      { action: "tapText", value: "Entrar" },
+      { action: "checkpoint", name: "pos-login" },
+    ],
+  };
+  const captures = [];
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    testers: [failPedindoEvidencia, testerResult("PASS")],
+    audits: [review("PASS")],
+  });
+  const events = [];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: {
+      async collectEvidence({ cycle, extraSteps = [] }) {
+        captures.push({ cycle, extraSteps });
+        return { screenshots: [], uiNodes: [], errors: "" };
+      },
+    },
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    onEvent: (event) => events.push(event.type),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(result.cycles.length, 1);
+  assert.equal(runtime.testerIndex, 2);
+  assert.equal(captures.length, 2);
+  assert.equal(captures[1].cycle, "1-extra");
+  assert.equal(captures[1].extraSteps.length, 2);
+  assert.ok(events.includes("tester.evidence.requested"));
+  assert.equal(result.cycles[0].testerBeforeEvidence.status, "FAIL");
+});
+
+test("tester itera com o device em várias rodadas sem acordar o lead", async () => {
+  const pede = (nome) => ({
+    ...testerResult("FAIL"),
+    requestedSteps: [{ action: "checkpoint", name: nome }],
+  });
+  const captures = [];
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    testers: [pede("um"), pede("dois"), testerResult("PASS")],
+    audits: [review("PASS")],
+  });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: {
+      async collectEvidence({ cycle, extraSteps = [] }) {
+        captures.push({ cycle, extraSteps });
+        return { screenshots: [], uiNodes: [], errors: "" };
+      },
+    },
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(result.cycles.length, 1);
+  assert.equal(runtime.executorIndex, 1);
+  assert.equal(runtime.testerIndex, 3);
+  assert.equal(captures.length, 3);
+  assert.equal(captures[2].cycle, "1-extra-2");
+});
+
+test("rodadas param cedo quando o tester repete os mesmos passos", async () => {
+  const mesmoPedido = () => ({
+    ...testerResult("FAIL"),
+    requestedSteps: [{ action: "checkpoint", name: "igual" }],
+  });
+  let captures = 0;
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    executors: [executorResult("v1"), executorResult("v2")],
+    testers: [mesmoPedido(), mesmoPedido(), testerResult("PASS")],
+    audits: [review("PASS")],
+  });
+  const fingerprints = ["a", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: {
+      async collectEvidence() {
+        captures += 1;
+        return { screenshots: [], uiNodes: [], errors: "" };
+      },
+    },
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(captures, 3);
+  assert.equal(result.cycles.length, 2);
+});
+
+test("captura extra que falha mantém o veredito original", async () => {
+  let calls = 0;
+  const failPedindoEvidencia = {
+    ...testerResult("FAIL"),
+    requestedSteps: [{ action: "checkpoint", name: "x" }],
+  };
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    executors: [executorResult("v1"), executorResult("v2")],
+    testers: [failPedindoEvidencia, testerResult("PASS")],
+    audits: [review("PASS")],
+  });
+  const fingerprints = ["a", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: {
+      async collectEvidence({ extraSteps = [] }) {
+        calls += 1;
+        if (extraSteps.length) throw new Error("device sumiu no meio");
+        return { screenshots: [], uiNodes: [], errors: "" };
+      },
+    },
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(result.cycles[0].tester.status, "FAIL");
+  assert.equal(calls, 3);
+});
+
 test("ux_auditor combina checagem visual e corrige sem redesenhar", async () => {
   const visualBrief = brief({
     route: ["design_director"],
@@ -674,6 +872,330 @@ test("recusa por exigir redesenho revisa o brief em vez de encerrar", async () =
   assert.equal(runtime.designerIndex, 2);
   assert.ok(eventos.includes("redesign.escalated"));
   assert.equal(runtime.executorContexts[1].contractDelivered, false);
+});
+
+test("implementação travada ganha uma tentativa no runtime de fallback", async () => {
+  const runtime = fakeRuntime({
+    executors: [
+      {
+        status: "BLOCKED",
+        summary: "Falta a credencial do serviço de mapas.",
+        changes: [],
+        tests: [],
+        blockers: ["credencial ausente"],
+      },
+    ],
+    audits: [review("PASS")],
+  });
+  const escalationRuntime = fakeRuntime({
+    executors: [executorResult("Resolvido pelo fallback")],
+  });
+  const events = [];
+  const fingerprints = ["a", "a", "b"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+    createEscalationRuntime: async () => escalationRuntime,
+    onEvent: (event) => events.push(event.type),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(escalationRuntime.executorIndex, 1);
+  assert.equal(
+    escalationRuntime.executorContexts[0].contractDelivered,
+    false,
+  );
+  assert.ok(events.includes("escalation.started"));
+  assert.equal(
+    result.cycles[0].implementation.summary,
+    "Resolvido pelo fallback",
+  );
+});
+
+test("fallback que também trava encerra e não roda duas vezes", async () => {
+  const blocked = {
+    status: "BLOCKED",
+    summary: "Sem saída.",
+    changes: [],
+    tests: [],
+    blockers: ["impasse"],
+  };
+  const runtime = fakeRuntime({ executors: [blocked] });
+  const escalationRuntime = fakeRuntime({ executors: [blocked] });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    createEscalationRuntime: async () => escalationRuntime,
+  });
+
+  assert.equal(result.finalStatus, "BLOCKED");
+  assert.equal(result.stopReason, "feature_lead_implementation_blocked");
+  assert.equal(escalationRuntime.executorIndex, 1);
+});
+
+test("tester travado é resgatado pelo fallback sem encerrar o run", async () => {
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    audits: [review("PASS")],
+  });
+  runtime.runTester = async () => {
+    throw new Error("tester caiu");
+  };
+  const escalationRuntime = fakeRuntime({ testers: [testerResult("PASS")] });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: screenDriver,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    createEscalationRuntime: async () => escalationRuntime,
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(escalationRuntime.testerIndex, 1);
+  assert.equal(result.cycles[0].tester.status, "PASS");
+});
+
+test("teto de tokens para o run antes do próximo gasto grande", async () => {
+  const runtime = fakeRuntime({
+    executors: [executorResult("v1"), executorResult("v2")],
+    audits: [review("CHANGES_REQUIRED"), review("PASS")],
+  });
+  const originalImplement = runtime.implementFeature.bind(runtime);
+  runtime.implementFeature = async function implementFeature(context, extra) {
+    extra.onProgress({
+      kind: "usage",
+      detail: "tokens",
+      elapsedSeconds: 1,
+      usage: {
+        input_tokens: 90_000,
+        cached_input_tokens: 0,
+        output_tokens: 20_000,
+        reasoning_output_tokens: 0,
+      },
+    });
+    return originalImplement(context, extra);
+  };
+  const fingerprints = ["a", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    tokenBudget: 100_000,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "STOPPED");
+  assert.equal(result.stopReason, "token_budget_exhausted");
+  assert.equal(runtime.executorIndex, 1);
+  assert.equal(runtime.auditIndex, 0);
+});
+
+test("contestação com achado novo ganha um ciclo de folga sem progresso", async () => {
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    executors: [
+      executorResult("v1"),
+      executorResult("contestei, sem mudança"),
+      executorResult("corrigi o tema escuro"),
+    ],
+    testers: [
+      testerResult("FAIL"),
+      {
+        ...testerResult("FAIL"),
+        findings: [{
+          priority: "high",
+          title: "Tema escuro não aplicado",
+          evidence: "Screenshot tema-escuro mostra fundo claro.",
+          recommendation: "Aplicar tokens de dark theme.",
+        }],
+      },
+      testerResult("PASS"),
+    ],
+    audits: [review("PASS")],
+  });
+  const fingerprints = ["a", "b", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    maxCycles: 5,
+    screenTestDriver: screenDriver,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(result.cycles.length, 3);
+  assert.match(runtime.executorContexts[2].feedback, /Tema escuro/);
+});
+
+const distinctFail = (title) => ({
+  ...testerResult("FAIL"),
+  findings: [{
+    priority: "high",
+    title,
+    evidence: `Evidência de ${title}.`,
+    recommendation: "Corrigir.",
+  }],
+});
+
+test("impasse de dois ciclos convoca arbitragem e o run continua", async () => {
+  const arbitrated = brief({
+    requiresScreenTest: true,
+    summary: "Brief arbitrado: achados improcedentes descartados",
+  });
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true }), arbitrated],
+    executors: [
+      executorResult("v1"),
+      executorResult("contestei"),
+      executorResult("contestei de novo"),
+      executorResult("corrigi conforme o brief arbitrado"),
+    ],
+    testers: [
+      distinctFail("um"),
+      distinctFail("dois"),
+      distinctFail("três"),
+      testerResult("PASS"),
+    ],
+    audits: [review("PASS")],
+  });
+  const events = [];
+  const fingerprints = ["a", "b", "b", "b", "c"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    maxCycles: 6,
+    screenTestDriver: screenDriver,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+    onEvent: (event) => events.push(event.type),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(runtime.designerIndex, 2);
+  assert.ok(events.includes("impasse.arbitration.started"));
+  assert.ok(events.includes("impasse.arbitration.completed"));
+  assert.match(
+    runtime.planningContexts[1].redesignFeedback,
+    /IMPASSE.*Posição da implementação/s,
+  );
+  assert.equal(runtime.executorContexts[3].contractDelivered, false);
+});
+
+test("achado repetido convoca o árbitro de produto em vez de parar", async () => {
+  const arbitrated = brief({
+    requiresScreenTest: true,
+    summary: "Arbitrado pela visão de produto",
+    outOfScope: ["Achado do revisor descartado: não serve ao userGoal"],
+  });
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true }), arbitrated],
+    executors: [
+      executorResult("v1"),
+      executorResult("tentei corrigir"),
+      executorResult("segui o brief arbitrado"),
+    ],
+    testers: [distinctFail("mesmo"), distinctFail("mesmo"), testerResult("PASS")],
+    audits: [review("PASS")],
+  });
+  const events = [];
+  const fingerprints = ["a", "b", "c", "d"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    maxCycles: 5,
+    screenTestDriver: screenDriver,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(runtime.designerIndex, 2);
+  const started = events.find(
+    (event) => event.type === "impasse.arbitration.started",
+  );
+  assert.equal(started.reason, "repeated_test_findings");
+  assert.match(
+    runtime.planningContexts[1].redesignFeedback,
+    /VISÃO DE PRODUTO.*userGoal/s,
+  );
+});
+
+test("impasse sem arbitragem possível ainda para o loop", async () => {
+  const runtime = fakeRuntime({
+    designs: [
+      brief({ requiresScreenTest: true }),
+      { status: "BLOCKED", summary: "Sem base para arbitrar", blockers: [] },
+    ],
+    executors: [executorResult("v1"), executorResult("v2"), executorResult("v3")],
+    testers: [distinctFail("um"), distinctFail("dois"), distinctFail("três")],
+  });
+  const fingerprints = ["a", "b", "b", "b"];
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    maxCycles: 5,
+    screenTestDriver: screenDriver,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => fingerprints.shift(),
+  });
+
+  assert.equal(result.finalStatus, "STOPPED");
+  assert.equal(result.stopReason, "no_workspace_progress");
+  assert.equal(result.cycles.length, 3);
+});
+
+test("FAIL sem achados vira BLOCKED e cai no fallback do tester", async () => {
+  const failVazio = { ...testerResult("FAIL"), findings: [] };
+  const runtime = fakeRuntime({
+    designs: [brief({ requiresScreenTest: true })],
+    testers: [failVazio],
+    audits: [review("PASS")],
+  });
+  const escalationRuntime = fakeRuntime({ testers: [testerResult("PASS")] });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    screenTestDriver: screenDriver,
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+    createEscalationRuntime: async () => escalationRuntime,
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.equal(escalationRuntime.testerIndex, 1);
+});
+
+test("resume injeta o feedback do run anterior no primeiro ciclo", async () => {
+  const runtime = fakeRuntime({ audits: [review("PASS")] });
+
+  const result = await runFeatureLoop({
+    ...base,
+    runtime,
+    designBrief: brief(),
+    resumedFeedback: "1. [high] CTA cortado\n   Correção esperada: Corrigir safe area.",
+    stateStore: new MemoryStore(),
+    fingerprint: async () => "a",
+  });
+
+  assert.equal(result.finalStatus, "PASS");
+  assert.match(runtime.executorContexts[0].feedback, /CTA cortado/);
+  assert.match(result.lastFeedback, /CTA cortado/);
 });
 
 test("recusa por outro motivo continua encerrando o loop", async () => {

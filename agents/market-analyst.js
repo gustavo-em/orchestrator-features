@@ -61,6 +61,7 @@ Regras:
 - Separe observação de inferência. Opportunities e risks são inferência sua.
 - Não edite arquivos, não audite código local e não inicie agentes.
 - Máximo 8 sinais e 5 itens por lista. Pare quando os motivos começarem a repetir.
+- No JSON de saída, o campo lane é exatamente "${lane.id}".
 
 App:
 ${JSON.stringify(appContext)}

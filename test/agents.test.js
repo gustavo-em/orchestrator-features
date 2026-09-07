@@ -296,3 +296,64 @@ test("regras do dono do app entram no planejamento como invariante", () => {
   });
   assert.match(semRegras, /Nenhuma registrada/);
 });
+
+test("prompts blindam contra alucinação encadeada", async () => {
+  const { tester } = await import("../agents/tester.js");
+  const { codeReviewer } = await import("../agents/code-reviewer.js");
+  const { uxAuditor } = await import("../agents/ux-auditor.js");
+  const { featureLead } = await import("../agents/feature-lead.js");
+
+  const base = {
+    task: "t",
+    acceptanceCriteria: "c",
+    cycle: 1,
+    implementationResult: {},
+    designBrief: {},
+    evidence: null,
+    diff: "",
+  };
+
+  assert.match(tester.buildPrompt(base), /AUTO-RELATO, não evidência/);
+  assert.match(tester.buildPrompt(base), /Achado sem âncora não é achado/);
+  assert.match(
+    tester.buildPrompt({ ...base, sessionPrimed: true }),
+    /auto-relato do feature_lead não é evidência/,
+  );
+  assert.match(codeReviewer.buildPrompt(base), /AUTO-RELATO do feature_lead/);
+  assert.match(uxAuditor.buildPrompt(base), /AUTO-RELATO, não evidência/);
+  assert.match(
+    featureLead.buildCorrectionPrompt({ cycle: 1, feedback: "x" }),
+    /âncora de um achado contradiz o workspace real, não corrija/,
+  );
+});
+
+test("tester recebe o recorte do brief e respeita escopo reduzido", async () => {
+  const { tester } = await import("../agents/tester.js");
+  const prompt = tester.buildPrompt({
+    task: "t",
+    acceptanceCriteria: "c",
+    cycle: 1,
+    implementationResult: {},
+    evidence: null,
+    designBrief: {
+      status: "READY",
+      summary: "s",
+      outOfScope: ["Notificações push ficam de fora"],
+      reducedScope: ["Só criar e concluir"],
+    },
+  });
+
+  assert.match(prompt, /Notificações push ficam de fora/);
+  assert.match(prompt, /reducedScope ou outOfScope foi cortado de propósito/);
+  assert.match(prompt, /somente quando o driver não entregou evidência nenhuma/);
+  assert.doesNotMatch(prompt, /caveman/);
+
+  const semBrief = tester.buildPrompt({
+    task: "t",
+    acceptanceCriteria: "c",
+    cycle: 1,
+    implementationResult: {},
+    evidence: null,
+  });
+  assert.match(semBrief, /Não fornecido; use os critérios/);
+});
