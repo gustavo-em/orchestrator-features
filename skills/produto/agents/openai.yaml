@@ -1,0 +1,4 @@
+interface:
+  display_name: "Produto"
+  short_description: "Discute a feature como produto: recorte minimo, criterios e riscos"
+  default_prompt: "Use $produto para fechar o recorte de produto desta feature antes do design: trabalho do usuario, menor versao valiosa, criterios observaveis, riscos e dependencias externas."
