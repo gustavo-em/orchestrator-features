@@ -1,13 +1,20 @@
 <div align="center">
 
-### Orquestrador de Features
+<img src="docs/banner.svg" alt="Orquestrador de Features" width="100%">
+
+<p>
+  <a href="#usage"><img alt="Usage" src="https://img.shields.io/badge/docs-usage-f9d71c?style=flat-square"></a>
+  <a href="#token-economy"><img alt="Token economy" src="https://img.shields.io/badge/tokens-measured-5fcf95?style=flat-square"></a>
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white">
+  <img alt="Providers" src="https://img.shields.io/badge/providers-Claude%20Code%20%7C%20Codex-6f42c1?style=flat-square">
+  <img alt="Platform" src="https://img.shields.io/badge/device-Android%20%C2%B7%20React%20Native-3ddc84?style=flat-square&logo=android&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square">
+</p>
 
 **A multi-agent loop that plans a React Native feature, writes it, opens the app on a real
 Android device, and only then says whether it passed.**
 
-Persistent-session agents · structured output · on-device evidence · Claude Code or Codex
-
-[How it works](#how-it-works) · [Technical decisions](#technical-decisions) · [Flags](#flags) · [Task files](#registering-an-app)
+[Usage](#usage) · [Token economy](#token-economy) · [How it works](#how-it-works) · [Technical decisions](#technical-decisions) · [Flags](#flags)
 
 </div>
 
@@ -61,164 +68,12 @@ ux       [high] Lista vazia genérica -> Separar dos dois estados
 
 ---
 
-## Why it exists
-
-A single coding agent has two expensive problems.
-
-**It rediscovers the project every time.** Separate sessions for planning, implementing
-and reviewing each pay the toll of re-reading the app — tens of thousands of tokens
-before any useful work starts.
-
-**And it grades its own homework.** When the same model writes the code and judges it,
-it defends what it just wrote.
-
-The architecture answers both: **one heavy, persistent session** that plans and implements
-without losing context, plus **separate, stateless specialists** fed with evidence the
-Node process already computed — the diff, the screenshots, the UI tree. Separate so they
-do not anchor on the author's reasoning; fed so they do not pay to rediscover the repo.
-
----
-
-## How it works
-
-```mermaid
-flowchart LR
-    A[market_analyst<br/>3 lanes in parallel] -.optional.-> B
-    B[feature_lead<br/>plans · high reasoning] --> C[feature_lead<br/>implements · same session]
-    C --> D{code_reviewer}
-    D --> E{tester<br/>screenshot + UI tree}
-    E --> F{ux_auditor}
-    F -->|findings| C
-    F -->|PASS| G[done]
-
-    style B fill:#f9d71c,stroke:#333,color:#000
-    style C fill:#f9d71c,stroke:#333,color:#000
-    style G fill:#5fcf95,stroke:#333,color:#000
-```
-
-`feature_lead` switches `reasoning` between planning and coding by **resuming the same
-session id**. It is not a second agent and there is no written handoff: the design
-decisions are still in the conversation when the code gets written. The specialists are
-only created when the brief says they are needed.
-
-Every agent answers with **structured output** against a JSON schema
-([`src/schemas.js`](src/schemas.js)), so the loop branches on fields — `status`,
-`worthBuilding`, `findings[].priority` — instead of parsing prose.
-
-| Agent | Session | What it owns |
-|---|---|---|
-| `market_analyst` | stateless, 3 parallel lanes | Real user reviews: why people leave, why they stay, how they react to paying |
-| `feature_lead` | **persistent** | The product call, the UX direction, the code, and every correction cycle |
-| `code_reviewer` | stateless | The diff — correctness, structure, risk |
-| `tester` | stateless | Screenshots and the UI tree from the device |
-| `ux_auditor` | stateless | Flow, states, accessibility, visual direction |
-
----
-
-## What it does differently
-
-### It decides whether the work is worth doing
-
-The brief answers `worthBuilding` — `yes`, `reduce` or `no` — with the reason. A `no`
-ends the run before a single line of code is written. It comes back in the same turn as
-the plan, so the decision costs no extra call.
-
-### It mines real reviews, not feature tables
-
-Knowing that a competitor has streaks, a widget and AI changes no decision — they all do.
-What changes a decision is the reason, in the words of someone who used the thing:
-
-> "In Todoist, if you miss a deadline, the task turns red and sits there glaring at you."
-
-Three lanes run in parallel — **why they abandon**, **why they stay**, **how they react to
-paying** — each signal carrying a literal quote, a source and a date. The research is
-per app, not per feature, so it is cached and reused by every task.
-
-### It validates on the actual screen
-
-No "this should work". The driver launches the app, waits for the screen to **actually
-render** (it polls the UI tree until any "Downloading…" is gone), runs deterministic
-steps, and captures.
-
-| Evidence accepted | Evidence rejected |
-|---|---|
-| <img src="docs/imagens/evidencia-sem-prazo-expandido.png" width="260"> | <img src="docs/imagens/evidencia-tela-de-erro.png" width="260"> |
-| Section expanded, list scrolled to the end | Bundle still loading — the tester blocks |
-
-Steps navigate **by text**, never by coordinate, so they survive a layout change:
-
-```json
-[
-  { "action": "wait", "ms": 2000 },
-  { "action": "checkpoint", "name": "abertura" },
-  { "action": "tapText", "value": "Sem prazo", "optional": true },
-  { "action": "scrollToEnd", "times": 4 },
-  { "action": "checkpoint", "name": "expandido" }
-]
-```
-
-### It respects decisions that are already yours
-
-`regras.md` holds the app owner's design invariants. They enter every planning turn as
-things that **do not get reopened** — and if one of them blocks the task, the agent
-reports it in `blockers` instead of overruling it.
-
-That came from a real failure: the agent removed a section separator on its own
-reasoning, and with nowhere to record the disagreement, the next run undid the fix.
-
----
-
-## Two providers
-
-The loop is provider-agnostic. `src/runtime-factory.js` picks a runtime, and both
-implement the same surface: run an agent, resume a session id, set a reasoning effort,
-return structured output.
-
-| | Claude Code | Codex |
-|---|---|---|
-| SDK | `@anthropic-ai/claude-agent-sdk` | `@openai/codex-sdk` |
-| Runtime | [`src/claude-agent.js`](src/claude-agent.js) | [`src/codex-agent.js`](src/codex-agent.js) |
-| Continuity | session id | thread id |
-| Reasoning | `low … max` | `minimal … persistent` |
-| Auth | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `~/.claude/.credentials.json`, or the macOS Keychain | `OPENAI_API_KEY` or `~/.codex/auth.json` |
-
-```bash
-orquestrar-features --project ~/Documents/my-app --provider claude "..."
-orquestrar-features --project ~/Documents/my-app --provider codex  "..."
-```
-
-Adding a third provider means one more file implementing that surface and one more entry
-in the factory — nothing in the loop, the agents or the schemas knows which one is running.
-
----
-
-## Token economy
-
-Every handoff is measured, not estimated.
-
-| Where | What changed |
-|---|---|
-| Cycle 2 onwards | Only the findings travel. The contract is already in the resumed session |
-| Reviewers | Receive the computed diff instead of re-exploring the repository |
-| `tester` and `ux_auditor` | Only `uiNodes`, filtered errors and the screenshot paths |
-| Specialists | `settingSources: []` — they do not load the project's CLAUDE.md |
-| Market research | Cached per app, not per feature |
-
-In one measured run, `market_analyst` accounted for **94.3%** of the tokens and
-`feature_lead` for **5.7%**. That is why the market cache matters more than any reasoning
-knob — and why `--marketing-mode none` is the right default for anything that is not a
-product decision.
-
-`--token-budget 800k` stops the run when the ceiling is reached, resumably.
-
----
-
 ## Install
 
 Node 18+ and the CLI of the provider you plan to use (`claude` or `codex`), authenticated.
 
 ```bash
-git clone <url> orquestrador-features
+git clone https://github.com/gustavo-em/orquestrador-features.git
 cd orquestrador-features
 npm install
 npm link
@@ -349,6 +204,156 @@ that ends `PASS` is committed before the next begins, so the second builds on th
 real code. Names resolve like `--task-file`. The project must start clean; branch first if
 you want to review everything in the morning. If one task stops, the queue stops, printing
 its `--resume` and the `--queue` for what is left.
+
+### Two providers
+
+The loop is provider-agnostic. `src/runtime-factory.js` picks a runtime, and both
+implement the same surface: run an agent, resume a session id, set a reasoning effort,
+return structured output.
+
+| | Claude Code | Codex |
+|---|---|---|
+| SDK | `@anthropic-ai/claude-agent-sdk` | `@openai/codex-sdk` |
+| Runtime | [`src/claude-agent.js`](src/claude-agent.js) | [`src/codex-agent.js`](src/codex-agent.js) |
+| Continuity | session id | thread id |
+| Reasoning | `low … max` | `minimal … persistent` |
+| Auth | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `~/.claude/.credentials.json`, or the macOS Keychain | `OPENAI_API_KEY` or `~/.codex/auth.json` |
+
+```bash
+orquestrar-features --project ~/Documents/my-app --provider claude "..."
+orquestrar-features --project ~/Documents/my-app --provider codex  "..."
+```
+
+Adding a third provider means one more file implementing that surface and one more entry
+in the factory — nothing in the loop, the agents or the schemas knows which one is running.
+
+---
+
+## Token economy
+
+Every handoff is measured, not estimated.
+
+| Where | What changed |
+|---|---|
+| Cycle 2 onwards | Only the findings travel. The contract is already in the resumed session |
+| Reviewers | Receive the computed diff instead of re-exploring the repository |
+| `tester` and `ux_auditor` | Only `uiNodes`, filtered errors and the screenshot paths |
+| Specialists | `settingSources: []` — they do not load the project's CLAUDE.md |
+| Market research | Cached per app, not per feature |
+
+In one measured run, `market_analyst` accounted for **94.3%** of the tokens and
+`feature_lead` for **5.7%**. That is why the market cache matters more than any reasoning
+knob — and why `--marketing-mode none` is the right default for anything that is not a
+product decision.
+
+`--token-budget 800k` stops the run when the ceiling is reached, resumably.
+
+---
+
+## Why it exists
+
+A single coding agent has two expensive problems.
+
+**It rediscovers the project every time.** Separate sessions for planning, implementing
+and reviewing each pay the toll of re-reading the app — tens of thousands of tokens
+before any useful work starts.
+
+**And it grades its own homework.** When the same model writes the code and judges it,
+it defends what it just wrote.
+
+The architecture answers both: **one heavy, persistent session** that plans and implements
+without losing context, plus **separate, stateless specialists** fed with evidence the
+Node process already computed — the diff, the screenshots, the UI tree. Separate so they
+do not anchor on the author's reasoning; fed so they do not pay to rediscover the repo.
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[market_analyst<br/>3 lanes in parallel] -.optional.-> B
+    B[feature_lead<br/>plans · high reasoning] --> C[feature_lead<br/>implements · same session]
+    C --> D{code_reviewer}
+    D --> E{tester<br/>screenshot + UI tree}
+    E --> F{ux_auditor}
+    F -->|findings| C
+    F -->|PASS| G[done]
+
+    style B fill:#f9d71c,stroke:#333,color:#000
+    style C fill:#f9d71c,stroke:#333,color:#000
+    style G fill:#5fcf95,stroke:#333,color:#000
+```
+
+`feature_lead` switches `reasoning` between planning and coding by **resuming the same
+session id**. It is not a second agent and there is no written handoff: the design
+decisions are still in the conversation when the code gets written. The specialists are
+only created when the brief says they are needed.
+
+Every agent answers with **structured output** against a JSON schema
+([`src/schemas.js`](src/schemas.js)), so the loop branches on fields — `status`,
+`worthBuilding`, `findings[].priority` — instead of parsing prose.
+
+| Agent | Session | What it owns |
+|---|---|---|
+| `market_analyst` | stateless, 3 parallel lanes | Real user reviews: why people leave, why they stay, how they react to paying |
+| `feature_lead` | **persistent** | The product call, the UX direction, the code, and every correction cycle |
+| `code_reviewer` | stateless | The diff — correctness, structure, risk |
+| `tester` | stateless | Screenshots and the UI tree from the device |
+| `ux_auditor` | stateless | Flow, states, accessibility, visual direction |
+
+---
+
+## What it does differently
+
+### It decides whether the work is worth doing
+
+The brief answers `worthBuilding` — `yes`, `reduce` or `no` — with the reason. A `no`
+ends the run before a single line of code is written. It comes back in the same turn as
+the plan, so the decision costs no extra call.
+
+### It mines real reviews, not feature tables
+
+Knowing that a competitor has streaks, a widget and AI changes no decision — they all do.
+What changes a decision is the reason, in the words of someone who used the thing:
+
+> "In Todoist, if you miss a deadline, the task turns red and sits there glaring at you."
+
+Three lanes run in parallel — **why they abandon**, **why they stay**, **how they react to
+paying** — each signal carrying a literal quote, a source and a date. The research is
+per app, not per feature, so it is cached and reused by every task.
+
+### It validates on the actual screen
+
+No "this should work". The driver launches the app, waits for the screen to **actually
+render** (it polls the UI tree until any "Downloading…" is gone), runs deterministic
+steps, and captures.
+
+| Evidence accepted | Evidence rejected |
+|---|---|
+| <img src="docs/imagens/evidencia-sem-prazo-expandido.png" width="260"> | <img src="docs/imagens/evidencia-tela-de-erro.png" width="260"> |
+| Section expanded, list scrolled to the end | Bundle still loading — the tester blocks |
+
+Steps navigate **by text**, never by coordinate, so they survive a layout change:
+
+```json
+[
+  { "action": "wait", "ms": 2000 },
+  { "action": "checkpoint", "name": "abertura" },
+  { "action": "tapText", "value": "Sem prazo", "optional": true },
+  { "action": "scrollToEnd", "times": 4 },
+  { "action": "checkpoint", "name": "expandido" }
+]
+```
+
+### It respects decisions that are already yours
+
+`regras.md` holds the app owner's design invariants. They enter every planning turn as
+things that **do not get reopened** — and if one of them blocks the task, the agent
+reports it in `blockers` instead of overruling it.
+
+That came from a real failure: the agent removed a section separator on its own
+reasoning, and with nowhere to record the disagreement, the next run undid the fix.
 
 ---
 

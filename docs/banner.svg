@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="380" viewBox="0 0 1280 380" role="img" aria-label="Orquestrador de Features">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="55%" stop-color="#141b26"/>
+      <stop offset="100%" stop-color="#1b1408"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f9d71c"/>
+      <stop offset="100%" stop-color="#5fcf95"/>
+    </linearGradient>
+    <style>
+      .t { font-family: "SF Pro Display", "Segoe UI", Inter, Helvetica, Arial, sans-serif; }
+      .mono { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="380" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1280" height="6" fill="url(#accent)"/>
+
+  <!-- pipeline glyph, centered above the title -->
+  <g transform="translate(448 72)">
+    <circle cx="0" cy="0" r="14" fill="none" stroke="#8b949e" stroke-width="3"/>
+    <path d="M14 0h46" stroke="#8b949e" stroke-width="3"/>
+    <rect x="60" y="-18" width="36" height="36" rx="9" fill="#f9d71c"/>
+    <path d="M96 0h48" stroke="#8b949e" stroke-width="3"/>
+    <rect x="144" y="-18" width="36" height="36" rx="9" fill="#f9d71c"/>
+    <path d="M180 0h48" stroke="#8b949e" stroke-width="3"/>
+    <g stroke="#8b949e" stroke-width="3" fill="none">
+      <path d="M228 0h18l14-24h26"/>
+      <path d="M228 0h18l14 24h26"/>
+    </g>
+    <circle cx="296" cy="-24" r="9" fill="none" stroke="#8b949e" stroke-width="3"/>
+    <circle cx="296" cy="24" r="9" fill="none" stroke="#8b949e" stroke-width="3"/>
+    <path d="M305 -24h39" stroke="#8b949e" stroke-width="3"/>
+    <path d="M305 24h39" stroke="#8b949e" stroke-width="3"/>
+    <rect x="344" y="-18" width="36" height="36" rx="9" fill="#5fcf95"/>
+  </g>
+
+  <text class="t" x="640" y="205" text-anchor="middle" font-size="64" font-weight="700" fill="#f0f6fc" letter-spacing="-1.5">
+    Orquestrador de Features
+  </text>
+  <text class="t" x="640" y="252" text-anchor="middle" font-size="24" fill="#c9d1d9">
+    Plans a React Native feature, writes it, runs it on a real device —
+  </text>
+  <text class="t" x="640" y="284" text-anchor="middle" font-size="24" fill="#c9d1d9">
+    and only then says whether it passed.
+  </text>
+
+  <rect x="440" y="316" width="400" height="4" rx="2" fill="url(#accent)"/>
+
+  <text class="mono" x="640" y="356" text-anchor="middle" font-size="19" fill="#8b949e">
+    persistent sessions · structured output · on-device evidence
+  </text>
+</svg>
