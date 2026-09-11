@@ -126,6 +126,7 @@ export function validateAdbSteps(steps) {
         "hideKeyboard",
         "tree",
         "longPress",
+        "deeplink",
       ].includes(action)
     ) {
       throw new Error(`Ação ADB não permitida: ${action}.`);
@@ -325,6 +326,29 @@ export class AndroidTestDriver {
           validateInteger(step.y, "y"),
         ]);
         break;
+      case "deeplink": {
+        if (
+          typeof step.value !== "string" ||
+          !/^[a-z][a-z0-9+.-]*:/i.test(step.value)
+        ) {
+          throw new Error("deeplink.value deve ser uma URL com esquema.");
+        }
+        // O mesmo VIEW que o app recebe quando alguém toca no link, entregue
+        // direto ao componente: sem caixa de escolha do Android e sem depender
+        // de qual navegador está instalado. Com o app já aberto isso chega
+        // como onNewIntent, que é justamente o caso de quem já tem sessão.
+        await this.runTextAdb([
+          "shell",
+          "am",
+          "start",
+          "-a",
+          "android.intent.action.VIEW",
+          "-d",
+          step.value,
+          `${this.packageName}/${this.activity}`,
+        ]);
+        break;
+      }
       case "tapText": {
         if (typeof step.value !== "string") {
           throw new Error("tapText.value deve ser string.");
@@ -613,6 +637,7 @@ export class AndroidTestDriver {
       "keyevent",
       "swipe",
       "longPress",
+      "deeplink",
     ]);
     let lastSignature = null;
     for (const step of steps) {
@@ -640,6 +665,23 @@ export class AndroidTestDriver {
       // App fora do foreground após um passo (BACK na raiz, crash) renderia
       // launcher em todos os checkpoints seguintes: religa e registra o fato
       // como evidência — o tester decide se é bug de navegação.
+      //
+      // `keepForeign` desliga isso para o passo: a saída esperada É outro
+      // pacote no topo (o seletor de compartilhamento do Android), e relançar
+      // o app antes do checkpoint apagaria justamente a prova pedida. O
+      // roteiro volta sozinho com um keyevent 4, e o passo seguinte sem a
+      // marca volta a religar o app se ele ainda não estiver na frente.
+      if (step.keepForeign === true) {
+        if (!(await this.isAppForeground())) {
+          interruptions.push(
+            `outro app em primeiro plano após o passo ${step.action}` +
+              (step.value ? ` (${step.value})` : "") +
+              (step.name ? ` (${step.name})` : "") +
+              "; mantido na tela para a captura",
+          );
+        }
+        continue;
+      }
       if (!(await this.isAppForeground())) {
         interruptions.push(
           `app saiu da tela após o passo ${step.action}` +
