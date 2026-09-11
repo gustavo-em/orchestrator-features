@@ -1,0 +1,211 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "feijao carioca"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Feijão, carioca",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "frango peito"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Frango, peito",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-tres-entradas"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-tres-entradas"
+  },
+  {
+    "action": "tapText",
+    "value": "Café da manhã",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "refeicao-colunas"
+  },
+  {
+    "action": "tree",
+    "name": "refeicao-colunas"
+  }
+]

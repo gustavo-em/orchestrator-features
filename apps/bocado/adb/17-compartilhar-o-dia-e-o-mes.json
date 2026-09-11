@@ -1,0 +1,233 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-antes-de-compartilhar"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-antes-de-compartilhar"
+  },
+  {
+    "action": "tapText",
+    "value": "Compartilhar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "checkpoint",
+    "name": "compartilhar-opcoes"
+  },
+  {
+    "action": "tree",
+    "name": "compartilhar-opcoes"
+  },
+  {
+    "action": "tapText",
+    "value": "Imagem do dia",
+    "optional": true,
+    "keepForeign": true
+  },
+  {
+    "action": "wait",
+    "ms": 6000,
+    "keepForeign": true
+  },
+  {
+    "action": "wait",
+    "ms": 2500,
+    "keepForeign": true
+  },
+  {
+    "action": "checkpoint",
+    "name": "seletor-do-android",
+    "keepForeign": true
+  },
+  {
+    "action": "tree",
+    "name": "seletor-do-android",
+    "keepForeign": true
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Compartilhar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Texto do dia",
+    "optional": true,
+    "keepForeign": true
+  },
+  {
+    "action": "wait",
+    "ms": 6000,
+    "keepForeign": true
+  },
+  {
+    "action": "wait",
+    "ms": 2500,
+    "keepForeign": true
+  },
+  {
+    "action": "checkpoint",
+    "name": "seletor-texto",
+    "keepForeign": true
+  },
+  {
+    "action": "tree",
+    "name": "seletor-texto",
+    "keepForeign": true
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Compartilhar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Imagem do mês",
+    "optional": true,
+    "keepForeign": true
+  },
+  {
+    "action": "wait",
+    "ms": 6000,
+    "keepForeign": true
+  },
+  {
+    "action": "wait",
+    "ms": 3000,
+    "keepForeign": true
+  },
+  {
+    "action": "checkpoint",
+    "name": "seletor-mes",
+    "keepForeign": true
+  },
+  {
+    "action": "tree",
+    "name": "seletor-mes",
+    "keepForeign": true
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-depois-de-compartilhar"
+  }
+]

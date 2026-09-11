@@ -1,0 +1,204 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "checkpoint",
+    "name": "primeiro-uso"
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-abertura"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-abertura"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar"
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "porcao-gramas-primeiro"
+  },
+  {
+    "action": "tree",
+    "name": "porcao-gramas-primeiro"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Metas",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "metas-tema"
+  },
+  {
+    "action": "tree",
+    "name": "metas-tema"
+  },
+  {
+    "action": "tapText",
+    "value": "Escuro",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "metas-escuro"
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-escuro"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-escuro"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "busca-escuro"
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Metas",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Claro",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-claro-de-volta"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-claro-de-volta"
+  }
+]

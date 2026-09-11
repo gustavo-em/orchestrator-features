@@ -1,0 +1,184 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-com-entrada"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-com-entrada"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "feijao"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Feijão, carioca, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-duas-entradas"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-duas-entradas"
+  },
+  {
+    "action": "tapText",
+    "value": "Abrir Café da manhã",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "refeicao-com-entradas"
+  },
+  {
+    "action": "tree",
+    "name": "refeicao-com-entradas"
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-subtotal"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-subtotal"
+  }
+]

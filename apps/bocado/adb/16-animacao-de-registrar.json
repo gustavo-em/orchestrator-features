@@ -1,0 +1,132 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "porcao-antes-de-salvar"
+  },
+  {
+    "action": "tree",
+    "name": "porcao-antes-de-salvar"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 120
+  },
+  {
+    "action": "checkpoint",
+    "name": "botao-salvando"
+  },
+  {
+    "action": "wait",
+    "ms": 350
+  },
+  {
+    "action": "checkpoint",
+    "name": "botao-confirmado"
+  },
+  {
+    "action": "wait",
+    "ms": 900
+  },
+  {
+    "action": "checkpoint",
+    "name": "entrada-chegando"
+  },
+  {
+    "action": "tree",
+    "name": "entrada-chegando"
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 250
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-entrada-entrando"
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-entrada-assentada"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-entrada-assentada"
+  }
+]

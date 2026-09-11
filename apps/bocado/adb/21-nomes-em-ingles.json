@@ -1,0 +1,204 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Fechar",
+    "optional": true
+  },
+  {
+    "action": "tapText",
+    "value": "Close",
+    "optional": true
+  },
+  {
+    "action": "tapText",
+    "value": "Goals",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "scrollToEnd",
+    "times": 3
+  },
+  {
+    "action": "tapText",
+    "value": "Português",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Metas",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "scrollToEnd",
+    "times": 3
+  },
+  {
+    "action": "tapText",
+    "value": "English",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Add",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "rice type 1"
+  },
+  {
+    "action": "wait",
+    "ms": 2500
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "checkpoint",
+    "name": "search-english"
+  },
+  {
+    "action": "tree",
+    "name": "search-english"
+  },
+  {
+    "action": "tapText",
+    "value": "Rice, type 1, cooked",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Add ·",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Done",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "today-english"
+  },
+  {
+    "action": "tree",
+    "name": "today-english"
+  },
+  {
+    "action": "tapText",
+    "value": "Goals",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "scrollToEnd",
+    "times": 3
+  },
+  {
+    "action": "tapText",
+    "value": "Português",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-de-volta-em-portugues"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-de-volta-em-portugues"
+  }
+]

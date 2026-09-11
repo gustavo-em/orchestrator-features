@@ -1,0 +1,179 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "checkpoint",
+    "name": "primeiro-uso"
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-abertura"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-abertura"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar"
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "porcao-gramas-primeiro"
+  },
+  {
+    "action": "tree",
+    "name": "porcao-gramas-primeiro"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-titulo"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-titulo"
+  },
+  {
+    "action": "tapText",
+    "value": "Escolher outro dia",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "calendario"
+  },
+  {
+    "action": "tree",
+    "name": "calendario"
+  },
+  {
+    "action": "tapText",
+    "value": "Mês anterior",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "calendario-mes-anterior"
+  },
+  {
+    "action": "tree",
+    "name": "calendario-mes-anterior"
+  },
+  {
+    "action": "tapText",
+    "value": "15",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "dia-escolhido"
+  },
+  {
+    "action": "tree",
+    "name": "dia-escolhido"
+  },
+  {
+    "action": "tapText",
+    "value": "Hoje",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "voltou-para-hoje"
+  },
+  {
+    "action": "tree",
+    "name": "voltou-para-hoje"
+  }
+]

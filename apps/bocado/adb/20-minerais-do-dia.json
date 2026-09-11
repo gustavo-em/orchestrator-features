@@ -1,0 +1,170 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "scrollToEnd",
+    "times": 3
+  },
+  {
+    "action": "wait",
+    "ms": 800
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-sem-chave"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-sem-chave"
+  },
+  {
+    "action": "swipe",
+    "x1": 540,
+    "y1": 730,
+    "x2": 540,
+    "y2": 2030,
+    "duration": 300
+  },
+  {
+    "action": "wait",
+    "ms": 800
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz tipo 1 cozido"
+  },
+  {
+    "action": "wait",
+    "ms": 2500
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "Metas",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "scrollToEnd",
+    "times": 3
+  },
+  {
+    "action": "wait",
+    "ms": 800
+  },
+  {
+    "action": "tapText",
+    "value": "Minerais do dia",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 800
+  },
+  {
+    "action": "checkpoint",
+    "name": "metas-chave-ligada"
+  },
+  {
+    "action": "tree",
+    "name": "metas-chave-ligada"
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "scrollToEnd",
+    "times": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-minerais"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-minerais"
+  }
+]

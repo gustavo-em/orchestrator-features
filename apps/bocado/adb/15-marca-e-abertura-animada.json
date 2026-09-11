@@ -1,0 +1,94 @@
+[
+  {
+    "action": "checkpoint",
+    "name": "abertura-quadro-inicial"
+  },
+  {
+    "action": "wait",
+    "ms": 700
+  },
+  {
+    "action": "checkpoint",
+    "name": "abertura-quadro-seguinte"
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "checkpoint",
+    "name": "abertura-assentada"
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-depois-da-abertura"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-depois-da-abertura"
+  },
+  {
+    "action": "tapText",
+    "value": "Metas",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "metas-marca"
+  },
+  {
+    "action": "tree",
+    "name": "metas-marca"
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-final"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-final"
+  }
+]

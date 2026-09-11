@@ -1,0 +1,5 @@
+[
+  { "action": "wait", "ms": 2500 },
+  { "action": "checkpoint", "name": "hoje" },
+  { "action": "tree", "name": "hoje" }
+]

@@ -1,0 +1,15 @@
+[
+  { "action": "wait", "ms": 2500 },
+  { "action": "checkpoint", "name": "hoje-claro" },
+  { "action": "tree", "name": "hoje" },
+  { "action": "tapText", "value": "Metas", "optional": true },
+  { "action": "wait", "ms": 900 },
+  { "action": "checkpoint", "name": "metas" },
+  { "action": "keyevent", "value": 4 },
+  { "action": "wait", "ms": 700 },
+  { "action": "night", "value": "yes" },
+  { "action": "wait", "ms": 1500 },
+  { "action": "checkpoint", "name": "hoje-escuro" },
+  { "action": "night", "value": "no" },
+  { "action": "wait", "ms": 1200 }
+]

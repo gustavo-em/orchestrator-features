@@ -1,0 +1,17 @@
+[
+  { "action": "wait", "ms": 2500 },
+  { "action": "checkpoint", "name": "hoje" },
+  { "action": "tree", "name": "hoje" },
+  { "action": "tapText", "value": "Adicionar" },
+  { "action": "wait", "ms": 1300 },
+  { "action": "hideKeyboard" },
+  { "action": "wait", "ms": 400 },
+  { "action": "checkpoint", "name": "sugestoes" },
+  { "action": "tree", "name": "sugestoes" },
+  { "action": "text", "value": "arr" },
+  { "action": "wait", "ms": 900 },
+  { "action": "hideKeyboard" },
+  { "action": "wait", "ms": 400 },
+  { "action": "checkpoint", "name": "busca-seus" },
+  { "action": "tree", "name": "busca-seus" }
+]

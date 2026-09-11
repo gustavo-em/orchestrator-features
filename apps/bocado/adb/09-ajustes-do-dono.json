@@ -1,0 +1,194 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "checkpoint",
+    "name": "primeiro-uso"
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-abertura"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-abertura"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar"
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "porcao-gramas-primeiro"
+  },
+  {
+    "action": "tree",
+    "name": "porcao-gramas-primeiro"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-com-macros"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-com-macros"
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "folha-editar-com-remover"
+  },
+  {
+    "action": "tree",
+    "name": "folha-editar-com-remover"
+  },
+  {
+    "action": "tapText",
+    "value": "Remover",
+    "optional": true
+  },
+  {
+    "action": "tree",
+    "name": "apos-remover"
+  },
+  {
+    "action": "checkpoint",
+    "name": "apos-remover"
+  },
+  {
+    "action": "tapText",
+    "value": "Desfazer",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "apos-desfazer"
+  },
+  {
+    "action": "tree",
+    "name": "apos-desfazer"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": true
+  },
+  {
+    "action": "text",
+    "value": "leite"
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "checkpoint",
+    "name": "porcao-liquido-ml"
+  },
+  {
+    "action": "tree",
+    "name": "porcao-liquido-ml"
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "checkpoint",
+    "name": "final"
+  },
+  {
+    "action": "tree",
+    "name": "final"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  { "action": "wait", "ms": 3000 },
+  { "action": "checkpoint", "name": "primeiro-uso-1" },
+  { "action": "tree", "name": "primeiro-uso-1" },
+  { "action": "tapText", "value": "Perder peso", "optional": true },
+  { "action": "wait", "ms": 900 },
+  { "action": "checkpoint", "name": "primeiro-uso-2" },
+  { "action": "tree", "name": "primeiro-uso-2" },
+  { "action": "tapText", "value": "Calcular", "optional": true },
+  { "action": "wait", "ms": 1000 },
+  { "action": "checkpoint", "name": "primeiro-uso-3" },
+  { "action": "tree", "name": "primeiro-uso-3" },
+  { "action": "tapText", "value": "Começar", "optional": true },
+  { "action": "wait", "ms": 1300 },
+  { "action": "checkpoint", "name": "hoje" },
+  { "action": "tapText", "value": "Metas", "optional": true },
+  { "action": "wait", "ms": 900 },
+  { "action": "checkpoint", "name": "metas" },
+  { "action": "tree", "name": "metas" }
+]

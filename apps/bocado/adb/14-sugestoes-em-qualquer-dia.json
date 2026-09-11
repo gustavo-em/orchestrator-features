@@ -1,0 +1,172 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar",
+    "optional": false
+  },
+  {
+    "action": "wait",
+    "ms": 1300
+  },
+  {
+    "action": "text",
+    "value": "arroz"
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 500
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar ·",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Concluir",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-com-chips"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-com-chips"
+  },
+  {
+    "action": "tapText",
+    "value": "Escolher outro dia",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "tapText",
+    "value": "8",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1800
+  },
+  {
+    "action": "checkpoint",
+    "name": "dia-passado-refeicoes"
+  },
+  {
+    "action": "tree",
+    "name": "dia-passado-refeicoes"
+  },
+  {
+    "action": "swipe",
+    "x1": 360,
+    "y1": 1150,
+    "x2": 360,
+    "y2": 450,
+    "duration": 350
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "checkpoint",
+    "name": "dia-passado-rolado"
+  },
+  {
+    "action": "tree",
+    "name": "dia-passado-rolado"
+  },
+  {
+    "action": "tapText",
+    "value": "Arroz, tipo 1, cozido",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "dia-passado-apos-chip"
+  },
+  {
+    "action": "tree",
+    "name": "dia-passado-apos-chip"
+  },
+  {
+    "action": "tapText",
+    "value": "Voltar para hoje",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-inalterado"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-inalterado"
+  }
+]
