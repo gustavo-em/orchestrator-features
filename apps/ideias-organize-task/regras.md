@@ -58,3 +58,25 @@ Se um achado apontar vermelho fora do Excluir, o achado está certo.
 
 Nenhum texto atribui falha ao usuário. Sem "você não concluiu", sem "atrasado há N dias" como
 manchete, sem tom de cobrança em estado vazio.
+
+## Estado do aparelho de teste (fato, não decisão)
+
+O Android de teste é um Samsung SM-M536B, Android 14, 1080x2400. Em
+2026-09-10 ele foi preparado à mão, e as tarefas contam com esse estado
+(`--device-state manter`; `limpo` apaga tudo isto):
+
+- conta de convidado com o nome **Gustavo** (o login por nome levou 3 s, sem
+  travar);
+- espaço compartilhado **Casa**, com link de convite ativo;
+- grupo **Festa** dentro de Casa, com a tarefa **Comprar bolo**.
+
+As três abas ficam em y = 2256: Tarefas em x = 180, Espaços em x = 540, Você
+em x = 900. Toque na aba por coordenada, não por texto: dentro de um espaço o
+botão de voltar se chama "Voltar para os espaços" e disputa o mesmo texto.
+
+O driver ganhou o passo `deeplink` em 2026-09-10 para estas tarefas: ele
+entrega um `android.intent.action.VIEW` direto ao componente do app, que é o
+que chega quando alguém toca no link do convite.
+
+Validação com duas contas continua impossível num device só; o que precisa de
+duas pessoas vira teste automatizado mais observação, nunca FAIL.

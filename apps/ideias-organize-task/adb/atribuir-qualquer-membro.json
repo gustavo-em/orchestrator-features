@@ -1,0 +1,23 @@
+[
+  { "action": "wait", "ms": 4000 },
+  { "action": "tap", "x": 540, "y": 2256 },
+  { "action": "wait", "ms": 1800 },
+  { "action": "tapText", "value": "Casa", "optional": true },
+  { "action": "wait", "ms": 1800 },
+  { "action": "tapText", "value": "Festa", "optional": true },
+  { "action": "wait", "ms": 1800 },
+  { "action": "checkpoint", "name": "1-grupo-com-tarefa" },
+  { "action": "tree", "name": "1-grupo-com-tarefa" },
+  { "action": "tapText", "value": "Comprar bolo", "optional": true },
+  { "action": "wait", "ms": 2000 },
+  { "action": "checkpoint", "name": "2-folha-da-tarefa" },
+  { "action": "tree", "name": "2-folha-da-tarefa" },
+  { "action": "scrollToEnd", "times": 2 },
+  { "action": "wait", "ms": 1000 },
+  { "action": "checkpoint", "name": "3-secao-pessoas" },
+  { "action": "tree", "name": "3-secao-pessoas" },
+  { "action": "tapText", "value": "Entrar na tarefa", "optional": true },
+  { "action": "wait", "ms": 1800 },
+  { "action": "checkpoint", "name": "4-depois-de-entrar" },
+  { "action": "tree", "name": "4-depois-de-entrar" }
+]
