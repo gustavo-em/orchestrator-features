@@ -74,7 +74,7 @@
   },
   {
     "action": "tapText",
-    "value": "Concluir",
+    "value": "Fechar",
     "optional": true
   },
   {

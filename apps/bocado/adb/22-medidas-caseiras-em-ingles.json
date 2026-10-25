@@ -35,7 +35,7 @@
   { "action": "wait", "ms": 1200 },
   { "action": "tapText", "value": "Add ·" },
   { "action": "wait", "ms": 1000 },
-  { "action": "tapText", "value": "Done" },
+  { "action": "tapText", "value": "Close" },
   { "action": "wait", "ms": 1500 },
   { "action": "checkpoint", "name": "hoje-english-nova-entrada" },
   { "action": "tree", "name": "hoje-english-nova-entrada" },

@@ -74,7 +74,7 @@
   },
   {
     "action": "tapText",
-    "value": "Concluir",
+    "value": "Fechar",
     "optional": true
   },
   {
@@ -125,7 +125,7 @@
   },
   {
     "action": "tapText",
-    "value": "Concluir",
+    "value": "Fechar",
     "optional": true
   },
   {
@@ -176,7 +176,7 @@
   },
   {
     "action": "tapText",
-    "value": "Concluir",
+    "value": "Fechar",
     "optional": true
   },
   {

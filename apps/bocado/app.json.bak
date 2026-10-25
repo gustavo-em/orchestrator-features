@@ -1,0 +1,25 @@
+{
+  "provider": "claude",
+  "profile": "deep",
+  "buildCommand": "npm run android:test-build",
+  "androidPackage": "com.gustavoem.bocado",
+  "androidActivity": ".MainActivity",
+  "adbDevice": "52000796031fc56d",
+  "adbSteps": "adb/hoje.json",
+  "marketingMode": "full",
+  "appCategory": "Contador de calorias e diário alimentar, Brasil primeiro; diferencial: registrar comida em três toques com interface calma e premium",
+  "competitors": [
+    "MyFitnessPal",
+    "Yazio",
+    "Lifesum",
+    "Lose It!",
+    "Cronometer",
+    "MacroFactor",
+    "Cal AI",
+    "FatSecret",
+    "Fitia",
+    "Foodnoms"
+  ],
+  "deviceState": "manter",
+  "auxModel": "claude-opus-5"
+}

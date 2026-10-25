@@ -1,0 +1,157 @@
+[
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "tapText",
+    "value": "Fechar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1000
+  },
+  {
+    "action": "tapText",
+    "value": "Perder peso",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Pular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 900
+  },
+  {
+    "action": "tapText",
+    "value": "Calcular",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1200
+  },
+  {
+    "action": "tapText",
+    "value": "Começar",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-antes"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar em Café da manhã"
+  },
+  {
+    "action": "wait",
+    "ms": 2000
+  },
+  {
+    "action": "checkpoint",
+    "name": "busca-aberta"
+  },
+  {
+    "action": "tree",
+    "name": "busca-aberta"
+  },
+  {
+    "action": "tapText",
+    "value": "Buscar alimento",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 600
+  },
+  {
+    "action": "text",
+    "value": "banana"
+  },
+  {
+    "action": "wait",
+    "ms": 3000
+  },
+  {
+    "action": "hideKeyboard"
+  },
+  {
+    "action": "wait",
+    "ms": 900
+  },
+  {
+    "action": "tree",
+    "name": "busca-banana"
+  },
+  {
+    "action": "tapText",
+    "value": "Adicionar Banana, nanica"
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "busca-apos-adicionar"
+  },
+  {
+    "action": "tree",
+    "name": "busca-apos-adicionar"
+  },
+  {
+    "action": "tapText",
+    "value": "1 item adicionado",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 900
+  },
+  {
+    "action": "checkpoint",
+    "name": "bandeja-expandida"
+  },
+  {
+    "action": "tree",
+    "name": "bandeja-expandida"
+  },
+  {
+    "action": "tapText",
+    "value": "1 item adicionado",
+    "optional": true
+  },
+  {
+    "action": "wait",
+    "ms": 900
+  },
+  {
+    "action": "keyevent",
+    "value": 4
+  },
+  {
+    "action": "wait",
+    "ms": 1500
+  },
+  {
+    "action": "checkpoint",
+    "name": "hoje-apos-fechar"
+  },
+  {
+    "action": "tree",
+    "name": "hoje-apos-fechar"
+  }
+]

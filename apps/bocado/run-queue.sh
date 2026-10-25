@@ -70,6 +70,9 @@ TASKS=(
   # food's measures in either language and re-reads it in the current one,
   # which is exactly what the brief asked for. Re-add the line only if a case
   # it does not cover turns up.
+  # The owner found the add tray confusing: "+" already saves, yet "Concluir"
+  # reads as if it still had to be confirmed.
+  "23-bandeja-de-adicionar|manter|yes"
 )
 
 START="${1:-1}"

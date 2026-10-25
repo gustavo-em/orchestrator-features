@@ -12,7 +12,7 @@
   { "action": "tapText", "value": "Adicionar Pão", "optional": true },
   { "action": "wait", "ms": 900 },
   { "action": "checkpoint", "name": "adicionado" },
-  { "action": "tapText", "value": "Concluir", "optional": true },
+  { "action": "tapText", "value": "Fechar", "optional": true },
   { "action": "wait", "ms": 1300 },
   { "action": "checkpoint", "name": "hoje-depois" },
   { "action": "night", "value": "yes" },

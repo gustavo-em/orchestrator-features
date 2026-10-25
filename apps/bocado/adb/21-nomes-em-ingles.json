@@ -148,7 +148,7 @@
   },
   {
     "action": "tapText",
-    "value": "Done",
+    "value": "Close",
     "optional": false
   },
   {

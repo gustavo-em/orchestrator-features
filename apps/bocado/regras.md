@@ -126,3 +126,24 @@ Decisões já fechadas para o Bocado. Valem em toda tarefa.
   passo manual — nunca BLOCKED por isso, nunca stub silencioso.
 - Não faça refactor de produto numa tarefa de polish, nem polish numa tarefa de
   dado.
+
+## Build de teste e a porta 8081 (fato, não decisão)
+
+`npm run android:test-build` apaga o bundle antigo de `assets/` e instala o
+build **release** (`installRelease`). Isso mudou no ciclo da tarefa 23
+(`af6237e`) e **deve ficar assim**: um build release não conversa com Metro, então
+um Metro de outro projeto na porta 8081 não consegue trocar o JavaScript do
+Bocado. Com o build de debug, o `installDebug` religava `adb reverse tcp:8081`,
+o Bocado carregava o bundle do outro projeto e morria numa tela vermelha que
+nomeia um módulo nativo que ele não tem (`'RNBackgroundFetch' could not be
+found`). Foi o que derrubou os três primeiros ciclos de tela da tarefa 23.
+
+Consequências:
+
+- não volte o script para `installDebug`;
+- o app instalado não é debugável, então `adb shell run-as` não funciona nele —
+  evidência de arquivo interno tem de vir da tela ou de teste;
+- nunca pare nem mexa num Metro que esteja na 8081: ele é do dono, que usa o
+  mesmo aparelho em outros projetos;
+- se a tela vermelha aparecer com um módulo que o Bocado não usa, o que está
+  instalado é um build de debug, e a causa é esta.

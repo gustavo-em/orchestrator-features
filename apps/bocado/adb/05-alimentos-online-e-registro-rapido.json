@@ -12,7 +12,7 @@
   { "action": "wait", "ms": 1200 },
   { "action": "checkpoint", "name": "produto-adicionado" },
   { "action": "tree", "name": "produto-adicionado" },
-  { "action": "tapText", "value": "Concluir", "optional": true },
+  { "action": "tapText", "value": "Fechar", "optional": true },
   { "action": "wait", "ms": 1300 },
   { "action": "checkpoint", "name": "hoje-com-produto" },
   { "action": "tapText", "value": "Adicionar", "optional": true },
